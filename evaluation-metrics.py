@@ -3,14 +3,115 @@ import time
 import json
 import sqlite3
 import itertools
+import statistics
 from typing import List, Dict, Any, Optional, Tuple
 from collections import Counter
 
+# import from your file
 from llm_sql_agent_deepseek import init_db, build_agent, DB_PATH
-from test_cases_sql import TEST_CASES, Case  # 从外部文件导入
+
+# ✅ import cases from separate file
+from test_cases_sql import TEST_CASES, Case
 
 
-# ... 你的 run_sql_raw_with_cols / normalize / best_match_executed_sql 等函数保持不变 ...
+def run_sql_raw_with_cols(db_path: str, sql: str) -> Tuple[List[Tuple], List[str]]:
+    conn = sqlite3.connect(db_path)
+    cur = conn.cursor()
+    cur.execute(sql)
+    rows = cur.fetchall()
+    cols = [d[0] for d in (cur.description or [])]
+    conn.close()
+    return rows, cols
+
+
+def normalize_value(x, float_ndigits=6):
+    if isinstance(x, str):
+        return x.strip()
+    if isinstance(x, float):
+        return round(x, float_ndigits)
+    return x
+
+
+def normalize_rows(rows: List[Tuple], float_ndigits=6) -> List[Tuple]:
+    return [tuple(normalize_value(v, float_ndigits) for v in r) for r in rows]
+
+
+def rows_equal(a: List[Tuple], b: List[Tuple], ignore_order=True) -> bool:
+    if ignore_order:
+        return Counter(a) == Counter(b)
+    return a == b
+
+
+def project_rows(rows: List[Tuple], idxs: List[int]) -> List[Tuple]:
+    return [tuple(r[i] for i in idxs) for r in rows]
+
+
+def best_match_executed_sql(
+    db_path: str,
+    sql_logs: List[str],
+    gold_sql: str,
+    ignore_order: bool = True,
+    float_ndigits: int = 6,
+) -> Tuple[Optional[str], Optional[List[Tuple]], bool, Optional[str]]:
+    # run gold once
+    try:
+        gold_rows_raw, gold_cols = run_sql_raw_with_cols(db_path, gold_sql)
+        gold_rows = normalize_rows(gold_rows_raw, float_ndigits)
+    except Exception as e:
+        return None, None, False, f"Gold SQL failed: {e}"
+
+    k = len(gold_cols) if gold_cols else (len(gold_rows[0]) if gold_rows else 0)
+
+    candidates = []
+    for s in sql_logs:
+        if not isinstance(s, str) or "select" not in s.lower():
+            continue
+        try:
+            agent_rows_raw, agent_cols = run_sql_raw_with_cols(db_path, s)
+            agent_rows_raw = agent_rows_raw or []
+            agent_cols = agent_cols or []
+        except Exception:
+            continue
+
+        # normalize full rows first
+        agent_rows_norm_full = normalize_rows(agent_rows_raw, float_ndigits)
+
+        # case: both empty
+        if not gold_rows and not agent_rows_norm_full:
+            return s, agent_rows_norm_full, True, None
+
+        # if we know column names, try name-based projection first
+        projections = []
+
+        if gold_cols and agent_cols:
+            if all(c in agent_cols for c in gold_cols):
+                idxs = [agent_cols.index(c) for c in gold_cols]
+                projections.append(idxs)
+
+        # fallback: brute force choose any k columns
+        if k > 0 and agent_rows_raw and len(agent_rows_raw[0]) >= k:
+            m = len(agent_rows_raw[0])
+            for idxs in itertools.combinations(range(m), k):
+                projections.append(list(idxs))
+
+        # remove duplicates
+        uniq = []
+        seen = set()
+        for idxs in projections:
+            t = tuple(idxs)
+            if t not in seen:
+                seen.add(t)
+                uniq.append(idxs)
+
+        for idxs in uniq:
+            proj = project_rows(agent_rows_norm_full, idxs)
+            if rows_equal(proj, gold_rows, ignore_order=ignore_order):
+                return s, proj, True, None
+
+        candidates.append((s, agent_rows_norm_full, agent_cols))
+
+    # no exact match
+    return None, None, False, None
 
 
 def main():
@@ -40,8 +141,8 @@ def main():
 
     db_obj.run = logged_run  # monkey patch
 
-    # -------- Benchmark cases ----------
-    cases: List[Case] = TEST_CASES  # ✅ 用外部文件的用例
+    # -------- Benchmark cases (imported) ----------
+    cases: List[Case] = TEST_CASES
 
     results: List[Dict[str, Any]] = []
     total_pass = 0
@@ -49,10 +150,12 @@ def main():
     for c in cases:
         sql_logs.clear()
 
+        # --- Run agent ---
         t0 = time.perf_counter()
         out = agent.invoke({"input": c.question})
         t1 = time.perf_counter()
 
+        # --- Semantic SQL matching ---
         executed_sql, agent_rows, passed, match_err = best_match_executed_sql(
             DB_PATH,
             sql_logs,
@@ -61,35 +164,57 @@ def main():
             float_ndigits=6,
         )
 
+        # --- Gold rows (only for display / logging) ---
         gold_rows_raw, _ = run_sql_raw_with_cols(DB_PATH, c.gold_sql)
         gold_rows = normalize_rows(gold_rows_raw)
 
+        # --- Error handling ---
         error = match_err
         if executed_sql is None and error is None:
             error = "No matching SELECT found in agent SQL logs."
 
         total_pass += int(passed)
 
-        results.append({
-            "id": c.id,
-            "question": c.question,
-            "gold_sql": c.gold_sql,
-            "gold_rows": gold_rows,
-            "executed_sql": executed_sql,
-            "agent_rows": agent_rows,
-            "passed": passed,
-            "latency_sec": round(t1 - t0, 4),
-            "sql_query_count": len(sql_logs),
-            "sql_logs": sql_logs.copy(),
-            "agent_output": out.get("output", out),
-            "notes": c.notes,
-            "error": error,
-        })
+        results.append(
+            {
+                "id": c.id,
+                "question": c.question,
+                "gold_sql": c.gold_sql,
+                "gold_rows": gold_rows,
+                "executed_sql": executed_sql,
+                "agent_rows": agent_rows,
+                "passed": passed,
+                "latency_sec": round(t1 - t0, 4),
+                "sql_query_count": len(sql_logs),
+                "sql_logs": sql_logs.copy(),
+                "agent_output": out.get("output", out),
+                "notes": c.notes,
+                "error": error,
+            }
+        )
+
+    avg_query_count = (
+        round(statistics.mean(r["sql_query_count"] for r in results), 4) if results else 0.0
+    )
+    avg_latency_sec = (
+        round(statistics.mean(r["latency_sec"] for r in results), 4) if results else 0.0
+    )
+
+    # ---- Normalize metrics for radar chart ----
+    # Query efficiency: 1 query = best, >=4 queries = worst
+    query_efficiency = max(0.0, min(1.0, (4 - avg_query_count) / (4 - 1)))
+
+    # Latency efficiency: <=20s best, >=50s worst (your code uses 60/20)
+    latency_efficiency = max(0.0, min(1.0, (60 - avg_latency_sec) / (60 - 20)))
 
     summary = {
         "total": len(cases),
         "passed": total_pass,
-        "accuracy": round(total_pass / len(cases), 4),
+        "accuracy": round(total_pass / len(cases), 4) if cases else 0.0,
+        "avg_sql_query_count": avg_query_count,
+        "avg_latency_sec": avg_latency_sec,
+        "query_efficiency": round(query_efficiency, 4),
+        "latency_efficiency": round(latency_efficiency, 4),
     }
 
     print("=== SUMMARY ===")
@@ -97,6 +222,7 @@ def main():
     print("\n=== DETAILS ===")
     print(json.dumps(results, indent=2, ensure_ascii=False))
 
+    # Optional: save to file for later analysis
     with open("benchmark_results.json", "w", encoding="utf-8") as f:
         json.dump({"summary": summary, "results": results}, f, indent=2, ensure_ascii=False)
 
