@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 
 print("Start plotting...")
 
-with open("benchmark_results.json") as f:
+with open("benchmark_results.json", "r", encoding="utf-8") as f:
     data = json.load(f)
 
 summary = data["summary"]
