@@ -4,15 +4,18 @@ import json
 import sqlite3
 import itertools
 import statistics
+import random
 from typing import List, Dict, Any, Optional, Tuple
 from collections import Counter
+
 
 # import from your file
 from llm_sql_agent_deepseek import init_db, build_agent, DB_PATH
 
-# ✅ import cases from separate file
+# import cases from separate file
 from test_cases_sql import TEST_CASES, Case
 
+from langchain_community.callbacks import get_openai_callback
 
 def run_sql_raw_with_cols(db_path: str, sql: str) -> Tuple[List[Tuple], List[str]]:
     conn = sqlite3.connect(db_path)
@@ -113,6 +116,19 @@ def best_match_executed_sql(
     # no exact match
     return None, None, False, None
 
+def result_completeness(agent_rows: List[Tuple], gold_rows: List[Tuple]) -> float:
+    if not gold_rows:
+        return 1.0 if not agent_rows else 0.0
+
+    gold_set = Counter(gold_rows)
+    agent_set = Counter(agent_rows or [])
+
+    matched = 0
+    for row in gold_set:
+        matched += min(gold_set[row], agent_set.get(row, 0))
+
+    return matched / len(gold_rows)
+
 
 def main():
     init_db()
@@ -152,8 +168,15 @@ def main():
 
         # --- Run agent ---
         t0 = time.perf_counter()
-        out = agent.invoke({"input": c.question})
+
+        with get_openai_callback() as cb:
+            out = agent.invoke({"input": c.question})
+
         t1 = time.perf_counter()
+
+        token_used = cb.total_tokens
+        prompt_tokens = cb.prompt_tokens
+        completion_tokens = cb.completion_tokens
 
         # --- Semantic SQL matching ---
         executed_sql, agent_rows, passed, match_err = best_match_executed_sql(
@@ -174,6 +197,7 @@ def main():
             error = "No matching SELECT found in agent SQL logs."
 
         total_pass += int(passed)
+        completeness = result_completeness(agent_rows or [], gold_rows)
 
         results.append(
             {
@@ -184,8 +208,12 @@ def main():
                 "executed_sql": executed_sql,
                 "agent_rows": agent_rows,
                 "passed": passed,
+                "completeness": round(completeness, 4),
                 "latency_sec": round(t1 - t0, 4),
                 "sql_query_count": len(sql_logs),
+                "token_usage": token_used,
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens,
                 "sql_logs": sql_logs.copy(),
                 "agent_output": out.get("output", out),
                 "notes": c.notes,
@@ -199,7 +227,9 @@ def main():
     avg_latency_sec = (
         round(statistics.mean(r["latency_sec"] for r in results), 4) if results else 0.0
     )
-
+    avg_completeness = (
+        round(statistics.mean(r["completeness"] for r in results), 4) if results else 0.0
+    )
     # ---- Normalize metrics for radar chart ----
     # Query efficiency: 1 query = best, >=4 queries = worst
     query_efficiency = max(0.0, min(1.0, (4 - avg_query_count) / (4 - 1)))
@@ -207,14 +237,28 @@ def main():
     # Latency efficiency: <=20s best, >=50s worst (your code uses 60/20)
     latency_efficiency = max(0.0, min(1.0, (60 - avg_latency_sec) / (60 - 20)))
 
+    avg_token_usage = (
+        round(statistics.mean(r["token_usage"] for r in results), 4) if results else 0.0
+    )
+    # ---- Token efficiency normalization ----
+    min_tokens = min(r["token_usage"] for r in results) if results else 1
+
+    token_efficiency = max(
+        0.0,
+        min(1.0, min_tokens / avg_token_usage)
+    ) if avg_token_usage > 0 else 0.0
+    
     summary = {
         "total": len(cases),
         "passed": total_pass,
         "accuracy": round(total_pass / len(cases), 4) if cases else 0.0,
+        "result_completeness": avg_completeness,
         "avg_sql_query_count": avg_query_count,
         "avg_latency_sec": avg_latency_sec,
         "query_efficiency": round(query_efficiency, 4),
         "latency_efficiency": round(latency_efficiency, 4),
+        "avg_token_usage": avg_token_usage,
+        "token_efficiency": round(token_efficiency, 4),
     }
 
     print("=== SUMMARY ===")
