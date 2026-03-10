@@ -69,4 +69,72 @@ TEST_CASES: List[Case] = [
         gold_sql="SELECT name, salary FROM employees WHERE salary > 100000;",
         notes="edge: empty result",
     ),
+    
+    # ---------- Hard ----------
+
+    Case(
+        id="not_engineering",
+        question="List employees who do not work in Engineering.",
+        gold_sql="""
+        SELECT name
+        FROM employees
+        WHERE dept != 'Engineering'
+        ORDER BY name;
+        """,
+    ),
+
+    Case(
+        id="engineering_or_high_salary",
+        question="List employees who work in Engineering or earn more than 35000.",
+        gold_sql="""
+        SELECT name
+        FROM employees
+        WHERE dept='Engineering'
+        OR salary > 35000
+        ORDER BY name;
+        """,
+    ),
+
+    Case(
+        id="dept_above_company_avg",
+        question="Which departments have an average salary higher than the company average?",
+        gold_sql="""
+        SELECT dept
+        FROM employees
+        GROUP BY dept
+        HAVING AVG(salary) >
+        (
+            SELECT AVG(salary)
+            FROM employees
+        );
+        """,
+    ),
+
+    Case(
+        id="highest_paid_per_dept",
+        question="List the highest paid employee in each department.",
+        gold_sql="""
+        SELECT name, dept, salary
+        FROM employees e
+        WHERE salary =
+        (
+            SELECT MAX(salary)
+            FROM employees
+            WHERE dept = e.dept
+        )
+        ORDER BY dept;
+        """,
+    ),
+
+    Case(
+        id="dept_more_than_two",
+        question="Which departments have more than two employees?",
+        gold_sql="""
+        SELECT dept
+        FROM employees
+        GROUP BY dept
+        HAVING COUNT(*) > 2
+        ORDER BY dept;
+        """,
+    ),
 ]
