@@ -5,6 +5,7 @@ import sqlite3
 import itertools
 import statistics
 import random
+import string
 from typing import List, Dict, Any, Optional, Tuple
 from collections import Counter
 
@@ -130,36 +131,90 @@ def result_completeness(agent_rows: List[Tuple], gold_rows: List[Tuple]) -> floa
     return matched / len(gold_rows)
 
 def add_noise(question: str) -> str:
+
     noise_type = random.choice([
         "delete_char",
         "swap_char",
         "replace_char",
+        "keyboard_typo",
+        "double_typo",
+        "reorder_phrase"
     ])
 
-    # ---- typo noises ----
-
+    # ---------- character level ----------
     chars = list(question)
 
-    if len(chars) < 3:
-        return question
-
-    idx = random.randint(0, len(chars) - 1)
-
-    # 删除一个字符
-    if noise_type == "delete_char":
+    if noise_type == "delete_char" and len(chars) > 4:
+        idx = random.randint(0, len(chars)-1)
         del chars[idx]
         return "".join(chars)
 
-    # 交换两个字符
-    if noise_type == "swap_char" and idx < len(chars) - 1:
-        chars[idx], chars[idx + 1] = chars[idx + 1], chars[idx]
+    if noise_type == "swap_char" and len(chars) > 4:
+        idx = random.randint(0, len(chars)-2)
+        chars[idx], chars[idx+1] = chars[idx+1], chars[idx]
         return "".join(chars)
 
-    # 替换一个字符
     if noise_type == "replace_char":
-        alphabet = "abcdefghijklmnopqrstuvwxyz"
-        chars[idx] = random.choice(alphabet)
+        idx = random.randint(0, len(chars)-1)
+        chars[idx] = random.choice(string.ascii_lowercase)
         return "".join(chars)
+
+    # ---------- keyboard typo ----------
+    if noise_type == "keyboard_typo":
+
+        keyboard_neighbors = {
+            "a":"sqwz","b":"vghn","c":"xdfv","d":"erfcxs",
+            "e":"rdsw","f":"rtgvcd","g":"tyhbvf","h":"yujnbg",
+            "i":"okju","j":"uikmnh","k":"iolmj","l":"opk",
+            "m":"njk","n":"bhjm","o":"pikl","p":"ol",
+            "q":"wa","r":"tfde","s":"wedxza","t":"ygfr",
+            "u":"yihj","v":"cfgb","w":"qase","x":"zsdc",
+            "y":"uhtg","z":"asx"
+        }
+
+        idx = random.randint(0, len(chars)-1)
+        ch = chars[idx].lower()
+
+        if ch in keyboard_neighbors:
+            chars[idx] = random.choice(keyboard_neighbors[ch])
+
+        return "".join(chars)
+
+    # ---------- double typo (swap inside word) ----------
+    if noise_type == "double_typo":
+
+        words = question.split()
+
+        if not words:
+            return question
+
+        w_idx = random.randint(0, len(words)-1)
+        word = list(words[w_idx])
+
+        if len(word) > 4:
+            i = random.randint(1, len(word)-3)
+            word[i], word[i+1] = word[i+1], word[i]
+            words[w_idx] = "".join(word)
+
+        return " ".join(words)
+
+    # ---------- reorder phrase ----------
+    if noise_type == "reorder_phrase":
+
+        words = question.split()
+
+        if len(words) < 5:
+            return question
+
+        i = random.randint(0, len(words)-3)
+        j = random.randint(i+1, len(words)-1)
+
+        segment = words[i:j]
+        random.shuffle(segment)
+
+        words[i:j] = segment
+
+        return " ".join(words)
 
     return question
 
