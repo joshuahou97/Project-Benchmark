@@ -129,6 +129,39 @@ def result_completeness(agent_rows: List[Tuple], gold_rows: List[Tuple]) -> floa
 
     return matched / len(gold_rows)
 
+def add_noise(question: str) -> str:
+    noise_type = random.choice([
+        "delete_char",
+        "swap_char",
+        "replace_char",
+    ])
+
+    # ---- typo noises ----
+
+    chars = list(question)
+
+    if len(chars) < 3:
+        return question
+
+    idx = random.randint(0, len(chars) - 1)
+
+    # 删除一个字符
+    if noise_type == "delete_char":
+        del chars[idx]
+        return "".join(chars)
+
+    # 交换两个字符
+    if noise_type == "swap_char" and idx < len(chars) - 1:
+        chars[idx], chars[idx + 1] = chars[idx + 1], chars[idx]
+        return "".join(chars)
+
+    # 替换一个字符
+    if noise_type == "replace_char":
+        alphabet = "abcdefghijklmnopqrstuvwxyz"
+        chars[idx] = random.choice(alphabet)
+        return "".join(chars)
+
+    return question
 
 def main():
     init_db()
@@ -162,6 +195,11 @@ def main():
 
     results: List[Dict[str, Any]] = []
     total_pass = 0
+
+    robust_results: List[Dict[str, Any]] = []
+
+    original_correct = 0
+    robust_correct = 0
 
     for c in cases:
         sql_logs.clear()
@@ -197,6 +235,9 @@ def main():
             error = "No matching SELECT found in agent SQL logs."
 
         total_pass += int(passed)
+        if passed:
+            original_correct += 1
+        
         completeness = result_completeness(agent_rows or [], gold_rows)
 
         results.append(
@@ -220,6 +261,49 @@ def main():
                 "error": error,
             }
         )
+
+        # ---- Robustness test ----
+        noisy_question = add_noise(c.question)
+        print("ROBUST TEST:", noisy_question)
+        sql_logs.clear()
+
+        try:
+            noisy_out = agent.invoke({"input": noisy_question})
+
+            executed_sql_n, agent_rows_n, passed_n, match_err_n = best_match_executed_sql(
+                DB_PATH,
+                sql_logs,
+                c.gold_sql,
+                ignore_order=True,
+                float_ndigits=6,
+            )
+
+            if passed and passed_n:
+                robust_correct += 1
+
+            robust_results.append(
+                {
+                    "id": c.id,
+                    "original_question": c.question,
+                    "noisy_question": noisy_question,
+                    "executed_sql": executed_sql_n,
+                    "agent_rows": agent_rows_n,
+                    "passed": passed_n,
+                    "sql_logs": sql_logs.copy(),
+                    "agent_output": noisy_out.get("output", noisy_out),
+                    "error": match_err_n,
+                }
+            )
+
+        except Exception as e:
+            robust_results.append(
+                {
+                    "id": c.id,
+                    "original_question": c.question,
+                    "noisy_question": noisy_question,
+                    "error": str(e),
+                }
+            )
 
     avg_query_count = (
         round(statistics.mean(r["sql_query_count"] for r in results), 4) if results else 0.0
@@ -248,6 +332,8 @@ def main():
         min(1.0, min_tokens / avg_token_usage)
     ) if avg_token_usage > 0 else 0.0
     
+    robust_accuracy = robust_correct / original_correct if original_correct > 0 else 0.0
+
     summary = {
         "total": len(cases),
         "passed": total_pass,
@@ -259,6 +345,7 @@ def main():
         "latency_efficiency": round(latency_efficiency, 4),
         "avg_token_usage": avg_token_usage,
         "token_efficiency": round(token_efficiency, 4),
+        "robust_accuracy": round(robust_accuracy, 4),
     }
 
     print("=== SUMMARY ===")
@@ -268,7 +355,16 @@ def main():
 
     # Optional: save to file for later analysis
     with open("benchmark_results.json", "w", encoding="utf-8") as f:
-        json.dump({"summary": summary, "results": results}, f, indent=2, ensure_ascii=False)
+        json.dump(
+            {
+                "summary": summary,
+                "results": results,
+                "robust_results": robust_results
+            },
+            f,
+            indent=2,
+            ensure_ascii=False
+        )
 
 
 if __name__ == "__main__":
