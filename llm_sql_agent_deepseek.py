@@ -4,11 +4,11 @@ from sqlalchemy import create_engine
 
 from langchain_community.utilities import SQLDatabase
 from langchain_community.agent_toolkits import create_sql_agent
-from langchain_openai import ChatOpenAI  # ✅ OpenAI-compatible interface (DeepSeek)
+from langchain_openai import ChatOpenAI  # OpenAI-compatible interface (DeepSeek)
 
 import config_local
 
-# ✅ dataset moved out
+# dataset moved out
 from employee_dataset import DB_PATH, EMPLOYEE_ROWS
 
 
@@ -47,7 +47,7 @@ def build_agent(verbose: bool = False):
     engine = create_engine(f"sqlite:///{DB_PATH}")
     db = SQLDatabase(engine)
 
-    # ✅ DeepSeek LLM (OpenAI-compatible)
+    # DeepSeek LLM (OpenAI-compatible)
     llm = ChatOpenAI(
         model=config_local.DEEPSEEK_MODEL,  # e.g. "deepseek-chat"
         temperature=0,
@@ -69,7 +69,7 @@ def main():
     init_db()
     agent = build_agent(verbose=True)
 
-    print("✅ DeepSeek SQL Agent ready. Type your question, or 'exit' to quit.\n")
+    print("DeepSeek SQL Agent ready. Type your question, or 'exit' to quit.\n")
     print("Examples:")
     print(" - What is the average salary in Engineering?")
     print(" - Who earns the highest salary?")
