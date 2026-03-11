@@ -11,7 +11,7 @@ from collections import Counter
 
 
 # import from your file
-from llm_sql_agent_deepseek import init_db, build_agent, DB_PATH
+from llm_sql_agent import init_db, build_agent, DB_PATH
 
 # import cases from separate file
 from test_cases_sql import TEST_CASES, Case
@@ -359,7 +359,7 @@ def main():
                     "error": str(e),
                 }
             )
-
+    # average metrics
     avg_query_count = (
         round(statistics.mean(r["sql_query_count"] for r in results), 4) if results else 0.0
     )
@@ -373,20 +373,28 @@ def main():
     # Query efficiency: 1 query = best, >=4 queries = worst
     query_efficiency = max(0.0, min(1.0, (4 - avg_query_count) / (4 - 1)))
 
-    # Latency efficiency: <=20s best, >=50s worst (your code uses 60/20)
+    # Latency efficiency: <=20s best, >=60s worst
     latency_efficiency = max(0.0, min(1.0, (60 - avg_latency_sec) / (60 - 20)))
 
     avg_token_usage = (
         round(statistics.mean(r["token_usage"] for r in results), 4) if results else 0.0
     )
     # ---- Token efficiency normalization ----
-    min_tokens = min(r["token_usage"] for r in results) if results else 1
+    valid_tokens = [r["token_usage"] for r in results if r["token_usage"] > 0]
 
-    token_efficiency = max(
-        0.0,
-        min(1.0, min_tokens / avg_token_usage)
-    ) if avg_token_usage > 0 else 0.0
-    
+    if valid_tokens:
+        avg_token_usage = statistics.mean(valid_tokens)
+        min_tokens = min(valid_tokens)
+
+        token_efficiency = max(
+            0.0,
+            min(1.0, min_tokens / avg_token_usage)
+        )
+    else:
+        avg_token_usage = 0.0
+        token_efficiency = 0.0
+
+    # robust accuracy: only count cases that were correct on original question
     robust_accuracy = robust_correct / original_correct if original_correct > 0 else 0.0
 
     summary = {
