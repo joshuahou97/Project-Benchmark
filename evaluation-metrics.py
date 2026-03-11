@@ -373,8 +373,8 @@ def main():
     # Query efficiency: 1 query = best, >=4 queries = worst
     query_efficiency = max(0.0, min(1.0, (4 - avg_query_count) / (4 - 1)))
 
-    # Latency efficiency: <=20s best, >=60s worst
-    latency_efficiency = max(0.0, min(1.0, (60 - avg_latency_sec) / (60 - 20)))
+    # Latency efficiency: <=15s best, >=60s worst
+    latency_efficiency = max(0.0, min(1.0, (60 - avg_latency_sec) / (60 - 15)))
 
     avg_token_usage = (
         round(statistics.mean(r["token_usage"] for r in results), 4) if results else 0.0
