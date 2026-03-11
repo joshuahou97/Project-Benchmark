@@ -250,6 +250,9 @@ def main():
 
     results: List[Dict[str, Any]] = []
     total_pass = 0
+    # ---- successful query counts and latency ----
+    successful_query_counts = []
+    successful_latency = []
 
     robust_results: List[Dict[str, Any]] = []
 
@@ -284,6 +287,16 @@ def main():
         gold_rows_raw, _ = run_sql_raw_with_cols(DB_PATH, c.gold_sql)
         gold_rows = normalize_rows(gold_rows_raw)
 
+        # NEW: fallback to last SQL result if no exact match
+        if agent_rows is None and sql_logs:
+            last_sql = sql_logs[-1]
+
+            try:
+                rows_raw, _ = run_sql_raw_with_cols(DB_PATH, last_sql)
+                agent_rows = normalize_rows(rows_raw)
+            except Exception:
+                agent_rows = []
+                
         # --- Error handling ---
         error = match_err
         if executed_sql is None and error is None:
@@ -292,7 +305,9 @@ def main():
         total_pass += int(passed)
         if passed:
             original_correct += 1
-        
+            successful_query_counts.append(len(sql_logs))
+            successful_latency.append(t1 - t0)
+            
         completeness = result_completeness(agent_rows or [], gold_rows)
 
         results.append(
@@ -359,26 +374,27 @@ def main():
                     "error": str(e),
                 }
             )
-    # average metrics
+    # ---- average metrics ----
     avg_query_count = (
-        round(statistics.mean(r["sql_query_count"] for r in results), 4) if results else 0.0
+        round(statistics.mean(successful_query_counts), 4) if successful_query_counts else 0.0
     )
     avg_latency_sec = (
-        round(statistics.mean(r["latency_sec"] for r in results), 4) if results else 0.0
+        round(statistics.mean(successful_latency), 4) if successful_latency else 0.0
     )
     avg_completeness = (
         round(statistics.mean(r["completeness"] for r in results), 4) if results else 0.0
     )
-    # ---- Normalize metrics for radar chart ----
-    # Query efficiency: 1 query = best, >=3 queries = worst
-    query_efficiency = max(0.0, min(1.0, (3 - avg_query_count) / (3 - 1)))
-
-    # Latency efficiency: <=15s best, >=60s worst
-    latency_efficiency = max(0.0, min(1.0, (60 - avg_latency_sec) / (60 - 15)))
-
     avg_token_usage = (
         round(statistics.mean(r["token_usage"] for r in results), 4) if results else 0.0
     )
+
+    # ---- Normalize metrics for radar chart ----
+    # Query efficiency: 1 query = best, >=4 queries = worst
+    query_efficiency = max(0.0, min(1.0, (4 - avg_query_count) / (4 - 1)))
+
+    # Latency efficiency: <=10s best, >=60s worst
+    latency_efficiency = max(0.0, min(1.0, (60 - avg_latency_sec) / (60 - 10)))
+
     # ---- Token efficiency normalization ----
     valid_tokens = [r["token_usage"] for r in results if r["token_usage"] > 0]
 
