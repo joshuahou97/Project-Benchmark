@@ -1,13 +1,16 @@
 
 ---
 
-# LLM SQL Agent Benchmark
+# LLM SQL and Multi-Agent Benchmark
 
-A lightweight benchmark framework for evaluating **LLM-powered SQL agents**.
+A lightweight benchmark framework for evaluating **LLM-powered SQL agents** and
+**multi-agent SQL + Python data analysis workflows**.
 
 This project builds a SQL agent using a Large Language Model (LLM) via an OpenAI-compatible API (e.g. DeepSeek or Qwen) and evaluates its ability to translate natural language questions into executable SQL queries.
 
-The benchmark measures multiple dimensions of performance including **accuracy, completeness, efficiency, robustness, and latency**.
+The extended multi-agent benchmark evaluates whether a Planner Agent can route a task to SQL only or SQL + Python analysis, and whether the full agent team can produce a correct final answer.
+
+The benchmark measures multiple dimensions of performance including **accuracy, completeness, tool routing, SQL correctness, Python correctness, robustness, and latency**.
 
 ---
 
@@ -16,8 +19,11 @@ The benchmark measures multiple dimensions of performance including **accuracy, 
 ```
 .
 ├── llm_sql_agent.py          # SQL agent implementation
-├── benchmark_sql_agent.py    # benchmark evaluation pipeline
+├── evaluation-metrics.py     # SQL benchmark evaluation pipeline
 ├── test_cases_sql.py         # benchmark test cases
+├── multi_agent_agents.py     # planner, SQL, Python, verifier, reporter agents
+├── multi_agent_benchmark.py  # multi-agent benchmark runner
+├── test_cases_multi_agent.py # multi-agent benchmark test cases
 ├── employee_dataset.py       # SQLite dataset
 ├── config_local.py           # LLM API configuration
 ├── visualize_radar.py        # radar chart visualization
@@ -37,6 +43,9 @@ This project provides:
 * Multiple evaluation metrics
 * Robustness testing with noisy queries
 * Radar chart visualization
+* Planner-based multi-agent routing
+* SQL + Python data analysis tasks
+* Verifier and trace logging for multi-agent runs
 
 ---
 
@@ -101,7 +110,7 @@ LLM_BASE_URL = "https://api.deepseek.com/v1"
 
 ---
 
-# Benchmark Tasks
+# SQL Benchmark Tasks
 
 Benchmark tasks are defined in:
 
@@ -145,6 +154,67 @@ Example tasks include:
 * average salary per department
 * departments above company average
 * highest salary per department
+
+---
+
+# Multi-Agent Benchmark
+
+The multi-agent benchmark extends the SQL benchmark into a small data analysis workflow.
+
+The default local implementation is deterministic so it can run without an API key. It is designed as a reproducible reference pipeline that can later be replaced by real LLM agents.
+
+The agent roles are:
+
+* **Planner Agent**: decides whether a task should use SQL only or SQL + Python.
+* **SQL Agent**: generates a SQL query for database retrieval.
+* **Python Agent**: computes statistical analysis or chart-ready data from SQL rows.
+* **Verifier Agent**: checks route and artifact consistency.
+* **Reporter Agent**: produces the final answer.
+
+Pipeline:
+
+```
+Natural Language Task
+        │
+        ▼
+   Planner Agent
+        │
+        ├── SQL only
+        │
+        └── SQL + Python
+        │
+        ▼
+   Verifier Agent
+        │
+        ▼
+   Reporter Agent
+        │
+        ▼
+ Evaluation Metrics
+```
+
+Multi-agent tasks are defined in:
+
+```
+test_cases_multi_agent.py
+```
+
+Each case includes:
+
+```python
+MultiAgentCase(
+    id="salary_variance_department",
+    question="Which department has the largest salary variance? Include the variance value.",
+    gold_route=("sql", "python"),
+    gold_sql="SELECT dept, salary FROM employees;",
+    answer_type="python_result",
+    expected={
+        "analysis": "group_variance_max",
+        "label": "Finance",
+        "value": 37555555.55555555,
+    },
+)
+```
 
 ---
 
@@ -218,6 +288,66 @@ Fewer queries indicate more efficient reasoning.
 
 Measures response time for each query.
 
+---
+
+# Multi-Agent Metrics
+
+The multi-agent benchmark reports:
+
+* **Final Accuracy**: whether the end-to-end answer is correct.
+* **Tool Routing Accuracy**: whether Planner selected the expected route, such as SQL only or SQL + Python.
+* **SQL Correctness**: whether SQL retrieval returns the expected rows for SQL-only tasks.
+* **Python Correctness**: whether statistical or chart-data analysis is correct.
+* **Verifier Pass Rate**: whether the verifier finds the run internally consistent.
+* **Result Completeness**: whether required facts appear in the final answer.
+* **Robust Final Accuracy**: final accuracy on noisy versions of the same questions.
+* **Robust Drop**: clean final accuracy minus noisy final accuracy.
+* **Average Latency / Round Count / Tool Calls**: collaboration efficiency.
+
+---
+
+# Running the Benchmarks
+
+Run the original SQL benchmark:
+
+```
+python evaluation-metrics.py
+```
+
+This requires a configured OpenAI-compatible LLM in:
+
+```
+config_local.py
+```
+
+Run the local reproducible multi-agent benchmark:
+
+```
+python multi_agent_benchmark.py
+```
+
+This creates:
+
+```
+benchmark_results_multi_agent.json
+```
+
+Example multi-agent summary:
+
+```json
+{
+  "total": 8,
+  "final_accuracy": 1.0,
+  "tool_routing_accuracy": 1.0,
+  "sql_correctness": 1.0,
+  "python_correctness": 1.0,
+  "verifier_pass_rate": 1.0,
+  "result_completeness": 1.0,
+  "robust_final_accuracy": 0.625,
+  "robust_drop": 0.375
+}
+```
+
 Lower latency indicates faster reasoning and tool usage.
 
 ---
@@ -290,12 +420,12 @@ This file should **not be committed to GitHub** because it contains API keys.
 
 ---
 
-# Running the Benchmark
+# Running the SQL Benchmark
 
 Run the benchmark script:
 
 ```
-python benchmark_sql_agent.py
+python evaluation-metrics.py
 ```
 
 The script will:
@@ -375,4 +505,3 @@ This benchmark framework can be extended with:
 This project is intended for **research and educational purposes**.
 
 ---
-
