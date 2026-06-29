@@ -332,6 +332,46 @@ This creates:
 benchmark_results_multi_agent.json
 ```
 
+Run the LLM-backed multi-agent benchmark:
+
+```
+python multi_agent_benchmark.py --agent-mode llm
+```
+
+LLM mode uses the OpenAI-compatible configuration in:
+
+```
+config_local.py
+```
+
+To reduce cost while testing LLM mode, run a small sample and skip noisy robustness cases:
+
+```
+python multi_agent_benchmark.py --agent-mode llm --limit 2 --skip-robust
+```
+
+Optional LLM components:
+
+```
+python multi_agent_benchmark.py --agent-mode llm --llm-verifier --llm-reporter
+```
+
+By default, LLM mode uses:
+
+* LLM Planner Agent
+* LLM SQL Agent
+* LLM Python Analysis Agent
+* rule-based Verifier Agent
+* rule-based Reporter Agent
+
+This keeps evaluation more stable while still measuring LLM planning, SQL generation, and Python-style analysis. Use `--llm-verifier` and `--llm-reporter` when you want the full agent team to be LLM-backed.
+
+LLM runs write to:
+
+```
+benchmark_results_multi_agent_llm.json
+```
+
 Example multi-agent summary:
 
 ```json

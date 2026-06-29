@@ -1,7 +1,9 @@
+import argparse
 import json
 import random
 import sqlite3
 import string
+import sys
 import time
 from collections import Counter
 from typing import Any, Dict, List, Sequence, Tuple
@@ -9,6 +11,12 @@ from typing import Any, Dict, List, Sequence, Tuple
 from employee_dataset import DB_PATH, EMPLOYEE_ROWS
 from multi_agent_agents import (
     AgentMessage,
+    LLMClient,
+    LLMPythonAnalysisAgent,
+    LLMPlannerAgent,
+    LLMReporterAgent,
+    LLMSQLAgent,
+    LLMVerifierAgent,
     PlannerAgent,
     PythonAnalysisAgent,
     ReporterAgent,
@@ -122,15 +130,26 @@ def add_noise(question: str) -> str:
 
 
 class MultiAgentOrchestrator:
-    def __init__(self):
-        self.planner = PlannerAgent()
-        self.sql_agent = TemplateSQLAgent()
-        self.python_agent = PythonAnalysisAgent()
-        self.verifier = VerifierAgent()
-        self.reporter = ReporterAgent()
+    def __init__(self, agent_mode: str = "deterministic", llm_verifier: bool = False, llm_reporter: bool = False):
+        self.agent_mode = agent_mode
+        self.llm_client = LLMClient() if agent_mode == "llm" else None
+
+        if self.llm_client:
+            self.planner = LLMPlannerAgent(self.llm_client)
+            self.sql_agent = LLMSQLAgent(self.llm_client)
+            self.python_agent = LLMPythonAnalysisAgent(self.llm_client)
+            self.verifier = LLMVerifierAgent(self.llm_client if llm_verifier else None)
+            self.reporter = LLMReporterAgent(self.llm_client if llm_reporter else None)
+        else:
+            self.planner = PlannerAgent()
+            self.sql_agent = TemplateSQLAgent()
+            self.python_agent = PythonAnalysisAgent()
+            self.verifier = VerifierAgent()
+            self.reporter = ReporterAgent()
 
     def run(self, question: str) -> Dict[str, Any]:
         trace: List[AgentMessage] = []
+        llm_start = len(self.llm_client.calls) if self.llm_client else 0
 
         plan = self.planner.plan(question)
         trace.append(AgentMessage("planner", {"route": plan.route, "steps": plan.steps, "rationale": plan.rationale}))
@@ -138,19 +157,47 @@ class MultiAgentOrchestrator:
         sql = self.sql_agent.generate_sql(question, plan)
         trace.append(AgentMessage("sql_agent", {"sql": sql}))
 
-        sql_rows, sql_columns = run_sql_raw_with_cols(DB_PATH, sql)
-        trace.append(AgentMessage("sql_executor", {"columns": sql_columns, "rows": sql_rows}))
+        sql_error = None
+        try:
+            sql_rows, sql_columns = run_sql_raw_with_cols(DB_PATH, sql)
+        except Exception as exc:
+            sql_rows, sql_columns = [], []
+            sql_error = str(exc)
+        trace.append(AgentMessage("sql_executor", {"columns": sql_columns, "rows": sql_rows, "error": sql_error}))
 
         python_result: Dict[str, Any] = {}
-        if "python" in plan.route:
-            python_result = self.python_agent.analyze(question, sql_columns, sql_rows)
+        python_error = None
+        if "python" in plan.route and sql_error is None:
+            try:
+                python_result = self.python_agent.analyze(question, sql_columns, sql_rows)
+            except Exception as exc:
+                python_error = str(exc)
+                python_result = {"analysis": "error", "error": python_error}
             trace.append(AgentMessage("python_agent", python_result))
 
         verifier_result = self.verifier.verify(plan, sql_rows, python_result)
+        if sql_error:
+            verifier_result["passed"] = False
+            verifier_result["issues"].append(f"SQL execution failed: {sql_error}")
+            verifier_result["issue_count"] = len(verifier_result["issues"])
+        if python_error:
+            verifier_result["passed"] = False
+            verifier_result["issues"].append(f"Python analysis failed: {python_error}")
+            verifier_result["issue_count"] = len(verifier_result["issues"])
         trace.append(AgentMessage("verifier", verifier_result))
 
         final_answer = self.reporter.report(question, plan, sql_rows, python_result)
         trace.append(AgentMessage("reporter", {"final_answer": final_answer}))
+        llm_calls = []
+        if self.llm_client:
+            llm_calls = [
+                {
+                    "agent": call.agent,
+                    "output": call.output,
+                    "token_usage": call.token_usage,
+                }
+                for call in self.llm_client.calls[llm_start:]
+            ]
 
         return {
             "plan": plan,
@@ -161,6 +208,7 @@ class MultiAgentOrchestrator:
             "verifier": verifier_result,
             "final_answer": final_answer,
             "trace": trace,
+            "llm_calls": llm_calls,
         }
 
 
@@ -243,6 +291,8 @@ def evaluate_case(case: MultiAgentCase, orchestrator: MultiAgentOrchestrator, no
         "round_count": len(run["trace"]),
         "sql_query_count": 1,
         "python_execution_count": 1 if "python" in route else 0,
+        "llm_call_count": len(run.get("llm_calls", [])),
+        "llm_calls": run.get("llm_calls", []),
         "trace": [
             {"agent": message.agent, "content": message.content}
             for message in run["trace"]
@@ -263,6 +313,7 @@ def summarize(results: Sequence[Dict[str, Any]], robust_results: Sequence[Dict[s
     python_correct = sum(1 for item in python_cases if item["python_correct"])
     verifier_passed = sum(1 for item in results if item["verifier_passed"])
     robust_correct = sum(1 for item in robust_results if item["final_correct"])
+    llm_call_count = sum(item.get("llm_call_count", 0) for item in results)
 
     return {
         "total": total,
@@ -272,27 +323,54 @@ def summarize(results: Sequence[Dict[str, Any]], robust_results: Sequence[Dict[s
         "python_correctness": round(python_correct / len(python_cases), 4) if python_cases else 1.0,
         "verifier_pass_rate": round(verifier_passed / total, 4),
         "result_completeness": round(sum(item["completeness"] for item in results) / total, 4),
-        "robust_final_accuracy": round(robust_correct / len(robust_results), 4) if robust_results else 0.0,
+        "robust_final_accuracy": round(robust_correct / len(robust_results), 4) if robust_results else None,
         "robust_drop": round((final_correct / total) - (robust_correct / len(robust_results)), 4)
         if robust_results
-        else 0.0,
+        else None,
         "avg_latency_sec": round(sum(item["latency_sec"] for item in results) / total, 4),
         "avg_round_count": round(sum(item["round_count"] for item in results) / total, 4),
         "avg_sql_query_count": round(sum(item["sql_query_count"] for item in results) / total, 4),
         "avg_python_execution_count": round(sum(item["python_execution_count"] for item in results) / total, 4),
+        "avg_llm_call_count": round(llm_call_count / total, 4),
     }
 
 
-def main():
-    random.seed(42)
-    init_db()
-    orchestrator = MultiAgentOrchestrator()
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Run the multi-agent SQL + Python benchmark.")
+    parser.add_argument(
+        "--agent-mode",
+        choices=["deterministic", "llm"],
+        default="deterministic",
+        help="Use deterministic reference agents or LLM-backed agents.",
+    )
+    parser.add_argument("--llm-verifier", action="store_true", help="Use an LLM verifier in LLM mode.")
+    parser.add_argument("--llm-reporter", action="store_true", help="Use an LLM reporter in LLM mode.")
+    parser.add_argument("--skip-robust", action="store_true", help="Skip noisy robustness runs to reduce LLM cost.")
+    parser.add_argument("--limit", type=int, default=None, help="Run only the first N cases.")
+    parser.add_argument("--seed", type=int, default=42, help="Random seed for noisy robustness cases.")
+    parser.add_argument("--output", default=None, help="Output JSON path.")
+    return parser.parse_args()
 
-    results = [evaluate_case(case, orchestrator, noisy=False) for case in MULTI_AGENT_TEST_CASES]
-    robust_results = [evaluate_case(case, orchestrator, noisy=True) for case in MULTI_AGENT_TEST_CASES]
+
+def main():
+    args = parse_args()
+    random.seed(args.seed)
+    init_db()
+    orchestrator = MultiAgentOrchestrator(
+        agent_mode=args.agent_mode,
+        llm_verifier=args.llm_verifier,
+        llm_reporter=args.llm_reporter,
+    )
+
+    cases = MULTI_AGENT_TEST_CASES[: args.limit] if args.limit else MULTI_AGENT_TEST_CASES
+    results = [evaluate_case(case, orchestrator, noisy=False) for case in cases]
+    robust_results = [] if args.skip_robust else [evaluate_case(case, orchestrator, noisy=True) for case in cases]
     summary = summarize(results, robust_results)
 
     output = {
+        "agent_mode": args.agent_mode,
+        "llm_verifier": args.llm_verifier,
+        "llm_reporter": args.llm_reporter,
         "summary": summary,
         "results": results,
         "robust_results": robust_results,
@@ -301,9 +379,19 @@ def main():
     print("=== MULTI-AGENT SUMMARY ===")
     print(json.dumps(summary, indent=2, ensure_ascii=False))
 
-    with open("benchmark_results_multi_agent.json", "w", encoding="utf-8") as f:
+    output_path = args.output or (
+        "benchmark_results_multi_agent_llm.json"
+        if args.agent_mode == "llm"
+        else "benchmark_results_multi_agent.json"
+    )
+    with open(output_path, "w", encoding="utf-8") as f:
         json.dump(output, f, indent=2, ensure_ascii=False)
+    print(f"Saved results to {output_path}")
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except RuntimeError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        sys.exit(2)

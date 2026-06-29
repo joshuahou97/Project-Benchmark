@@ -1,8 +1,20 @@
+import json
 import math
+import re
 import statistics
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
+
+
+DATABASE_SCHEMA = """
+Table: employees
+Columns:
+- name TEXT
+- dept TEXT
+- title TEXT
+- salary INTEGER
+""".strip()
 
 
 @dataclass
@@ -19,6 +31,14 @@ class Plan:
 
 
 @dataclass
+class LLMCall:
+    agent: str
+    prompt: str
+    output: str
+    token_usage: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
 class MultiAgentRun:
     question: str
     plan: Plan
@@ -29,6 +49,87 @@ class MultiAgentRun:
     final_answer: str
     trace: List[AgentMessage] = field(default_factory=list)
     verifier: Dict[str, Any] = field(default_factory=dict)
+
+
+def extract_json_object(text: str) -> Dict[str, Any]:
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+
+    match = re.search(r"\{.*\}", text, flags=re.DOTALL)
+    if not match:
+        raise ValueError(f"No JSON object found in LLM output: {text}")
+    return json.loads(match.group(0))
+
+
+def clean_sql(text: str) -> str:
+    sql = text.strip()
+    fenced = re.search(r"```(?:sql)?\s*(.*?)```", sql, flags=re.DOTALL | re.IGNORECASE)
+    if fenced:
+        sql = fenced.group(1).strip()
+    sql = sql.strip().strip("`")
+    sql = re.sub(r"^\s*SQL\s*:\s*", "", sql, flags=re.IGNORECASE)
+    sql = sql.split(";")[0].strip() + ";"
+    if not sql.lower().startswith("select"):
+        raise ValueError(f"Only SELECT statements are allowed. Got: {sql}")
+    return sql
+
+
+class LLMClient:
+    """Small LangChain adapter that is imported only when LLM mode is used."""
+
+    def __init__(self):
+        try:
+            import config_local
+            from langchain_openai import ChatOpenAI
+        except Exception as exc:
+            raise RuntimeError(
+                "LLM mode requires config_local.py plus langchain-openai. "
+                "Install requirements and configure LLM_MODEL, LLM_API_KEY, and LLM_BASE_URL."
+            ) from exc
+
+        placeholders = {
+            "Your LLM Model",
+            "Your API Key",
+            "Your Base URL",
+            "",
+        }
+        if (
+            config_local.LLM_MODEL in placeholders
+            or config_local.LLM_API_KEY in placeholders
+            or config_local.LLM_BASE_URL in placeholders
+        ):
+            raise RuntimeError(
+                "LLM mode is enabled, but config_local.py still contains placeholder values."
+            )
+
+        self.llm = ChatOpenAI(
+            model=config_local.LLM_MODEL,
+            temperature=0,
+            api_key=config_local.LLM_API_KEY,
+            base_url=config_local.LLM_BASE_URL,
+        )
+        self.calls: List[LLMCall] = []
+
+    def invoke(self, agent: str, system_prompt: str, user_prompt: str) -> str:
+        response = self.llm.invoke(
+            [
+                ("system", system_prompt),
+                ("human", user_prompt),
+            ]
+        )
+        output = response.content if hasattr(response, "content") else str(response)
+        token_usage = getattr(response, "usage_metadata", None) or {}
+        self.calls.append(
+            LLMCall(
+                agent=agent,
+                prompt=user_prompt,
+                output=output,
+                token_usage=dict(token_usage) if isinstance(token_usage, dict) else {},
+            )
+        )
+        return output
 
 
 class PlannerAgent:
@@ -80,6 +181,44 @@ class PlannerAgent:
         return Plan(route=route, steps=steps, rationale=rationale)
 
 
+class LLMPlannerAgent:
+    def __init__(self, llm_client: LLMClient):
+        self.llm_client = llm_client
+
+    def plan(self, question: str) -> Plan:
+        system_prompt = (
+            "You are a planner for a SQL + Python data analysis benchmark. "
+            "Choose the minimal route needed to answer the task. "
+            "Use route [\"sql\"] for direct retrieval, filtering, grouping, and simple SQL aggregates. "
+            "Use route [\"sql\", \"python\"] for variance, standard deviation, ranges, chart data, "
+            "distribution analysis, comparisons requiring post-processing, or multi-step numerical analysis. "
+            "Return JSON only."
+        )
+        user_prompt = f"""
+Database schema:
+{DATABASE_SCHEMA}
+
+Question:
+{question}
+
+Return this JSON shape:
+{{
+  "route": ["sql"] or ["sql", "python"],
+  "steps": [{{"agent": "sql", "goal": "..."}}, ...],
+  "rationale": "short reason"
+}}
+""".strip()
+        data = extract_json_object(self.llm_client.invoke("planner", system_prompt, user_prompt))
+        route = tuple(data.get("route", ["sql"]))
+        route = tuple(item for item in route if item in {"sql", "python"})
+        if not route or route[0] != "sql":
+            route = ("sql",) + tuple(item for item in route if item != "sql")
+        if route not in {("sql",), ("sql", "python")}:
+            route = ("sql", "python") if "python" in route else ("sql",)
+        steps = data.get("steps") or [{"agent": "sql", "goal": "Retrieve required data."}]
+        return Plan(route=route, steps=steps, rationale=data.get("rationale", "LLM generated plan."))
+
+
 class TemplateSQLAgent:
     """A deterministic SQL agent for local, reproducible benchmark runs."""
 
@@ -105,6 +244,30 @@ class TemplateSQLAgent:
             return "SELECT name, dept, salary FROM employees;"
 
         return "SELECT name, dept, title, salary FROM employees;"
+
+
+class LLMSQLAgent:
+    def __init__(self, llm_client: LLMClient):
+        self.llm_client = llm_client
+
+    def generate_sql(self, question: str, plan: Plan) -> str:
+        system_prompt = (
+            "You are a SQL agent for SQLite. Generate exactly one read-only SELECT statement. "
+            "Do not include markdown, explanation, comments, INSERT, UPDATE, DELETE, DROP, or PRAGMA."
+        )
+        user_prompt = f"""
+Database schema:
+{DATABASE_SCHEMA}
+
+Planner route: {list(plan.route)}
+Planner steps: {json.dumps(plan.steps, ensure_ascii=False)}
+
+Question:
+{question}
+
+Return only the SQL query. If Python will do later analysis, retrieve the raw columns needed for that analysis.
+""".strip()
+        return clean_sql(self.llm_client.invoke("sql_agent", system_prompt, user_prompt))
 
 
 class PythonAnalysisAgent:
@@ -187,6 +350,41 @@ class PythonAnalysisAgent:
         }
 
 
+class LLMPythonAnalysisAgent:
+    def __init__(self, llm_client: LLMClient):
+        self.llm_client = llm_client
+
+    def analyze(
+        self,
+        question: str,
+        columns: Sequence[str],
+        rows: Sequence[Tuple[Any, ...]],
+    ) -> Dict[str, Any]:
+        system_prompt = (
+            "You are a Python-style data analysis agent. Analyze the provided SQL result rows. "
+            "Return JSON only. Do not return Python code. Use numeric JSON values, not formatted strings."
+        )
+        user_prompt = f"""
+Question:
+{question}
+
+Columns:
+{list(columns)}
+
+Rows:
+{json.dumps(list(rows), ensure_ascii=False)}
+
+Return a compact JSON object with an "analysis" field and the computed result.
+Use these analysis names when appropriate:
+- group_variance_max: {{"analysis":"group_variance_max","label":"...","value":0}}
+- group_std_desc: {{"analysis":"group_std_desc","rows":[["...",0]]}}
+- group_range_max: {{"analysis":"group_range_max","label":"...","value":0}}
+- group_mean_chart: {{"analysis":"group_mean_chart","chart_type":"bar","rows":[["...",0]]}}
+- top_employee_vs_group_mean: {{"analysis":"top_employee_vs_group_mean","name":"...","dept":"...","salary":0,"dept_average":0,"difference":0}}
+""".strip()
+        return extract_json_object(self.llm_client.invoke("python_agent", system_prompt, user_prompt))
+
+
 class VerifierAgent:
     """Checks whether the planned route and produced artifacts are internally consistent."""
 
@@ -206,6 +404,39 @@ class VerifierAgent:
             "issues": issues,
             "issue_count": len(issues),
         }
+
+
+class LLMVerifierAgent(VerifierAgent):
+    def __init__(self, llm_client: Optional[LLMClient] = None):
+        self.llm_client = llm_client
+
+    def verify(self, plan: Plan, sql_rows: List[Tuple[Any, ...]], python_result: Dict[str, Any]) -> Dict[str, Any]:
+        base = super().verify(plan, sql_rows, python_result)
+        if not self.llm_client:
+            return base
+
+        system_prompt = (
+            "You are a verifier for a multi-agent benchmark. Check internal consistency only. "
+            "Return JSON only with passed boolean and issues list."
+        )
+        user_prompt = f"""
+Plan route: {list(plan.route)}
+SQL row count: {len(sql_rows) if sql_rows is not None else "null"}
+Python result: {json.dumps(python_result, ensure_ascii=False)}
+Rule-based verifier result: {json.dumps(base, ensure_ascii=False)}
+""".strip()
+        try:
+            data = extract_json_object(self.llm_client.invoke("verifier", system_prompt, user_prompt))
+            return {
+                "passed": bool(data.get("passed", base["passed"])) and base["passed"],
+                "issues": list(base["issues"]) + list(data.get("issues", [])),
+                "issue_count": len(base["issues"]) + len(data.get("issues", [])),
+            }
+        except Exception as exc:
+            base["issues"].append(f"LLM verifier failed: {exc}")
+            base["passed"] = False
+            base["issue_count"] = len(base["issues"])
+            return base
 
 
 class ReporterAgent:
@@ -233,6 +464,40 @@ class ReporterAgent:
                 f"{python_result['dept_average']}; difference is {python_result['difference']}."
             )
         return str(python_result)
+
+
+class LLMReporterAgent(ReporterAgent):
+    def __init__(self, llm_client: Optional[LLMClient] = None):
+        self.llm_client = llm_client
+
+    def report(
+        self,
+        question: str,
+        plan: Plan,
+        sql_rows: Sequence[Tuple[Any, ...]],
+        python_result: Dict[str, Any],
+    ) -> str:
+        if not self.llm_client:
+            return super().report(question, plan, sql_rows, python_result)
+
+        system_prompt = (
+            "You are a concise benchmark reporter. Answer using only the provided SQL/Python results. "
+            "Include the key numeric facts. Do not invent data."
+        )
+        user_prompt = f"""
+Question:
+{question}
+
+Route:
+{list(plan.route)}
+
+SQL rows:
+{json.dumps(list(sql_rows), ensure_ascii=False)}
+
+Python result:
+{json.dumps(python_result, ensure_ascii=False)}
+""".strip()
+        return self.llm_client.invoke("reporter", system_prompt, user_prompt).strip()
 
 
 def close_enough(actual: Any, expected: Any, tolerance: float = 1e-6) -> bool:
