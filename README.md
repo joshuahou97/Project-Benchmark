@@ -1,16 +1,13 @@
+# Enterprise Data Multi-Agent Benchmark
 
----
+A compact benchmark framework for evaluating enterprise-style data agents.
 
-# LLM SQL and Multi-Agent Benchmark
+This repository contains two related tracks:
 
-A lightweight benchmark framework for evaluating **LLM-powered SQL agents** and
-**multi-agent SQL + Python data analysis workflows**.
+* **SQL baseline**: a single LLM SQL agent that converts natural language into SQL.
+* **Enterprise multi-agent benchmark**: an agent workflow that grounds a business question into a metric, discovers required data, generates a sufficient query, runs analysis, performs QA, and returns a grounded insight.
 
-This project builds a SQL agent using a Large Language Model (LLM) via an OpenAI-compatible API (e.g. DeepSeek or Qwen) and evaluates its ability to translate natural language questions into executable SQL queries.
-
-The extended multi-agent benchmark evaluates whether a Planner Agent can route a task to SQL only or SQL + Python analysis, and whether the full agent team can produce a correct final answer.
-
-The benchmark measures multiple dimensions of performance including **accuracy, completeness, tool routing, SQL correctness, Python correctness, robustness, and latency**.
+The enterprise benchmark is intentionally small for presentation purposes. It uses a separate multi-table SQLite dataset for customer revenue, support exposure, and account ownership, while keeping the workflow compact enough to inspect and run.
 
 ---
 
@@ -18,221 +15,44 @@ The benchmark measures multiple dimensions of performance including **accuracy, 
 
 ```
 .
-├── llm_sql_agent.py          # SQL agent implementation
-├── evaluation-metrics.py     # SQL benchmark evaluation pipeline
-├── test_cases_sql.py         # benchmark test cases
-├── multi_agent_agents.py     # planner, SQL, Python, verifier, reporter agents
-├── multi_agent_benchmark.py  # multi-agent benchmark runner
-├── test_cases_multi_agent.py # multi-agent benchmark test cases
-├── employee_dataset.py       # SQLite dataset
-├── config_local.py           # LLM API configuration
-├── visualize_radar.py        # radar chart visualization
+├── llm_sql_agent.py          # single-agent SQL baseline
+├── evaluation-metrics.py     # SQL baseline evaluator
+├── test_cases_sql.py         # SQL baseline test cases
+├── multi_agent_agents.py     # enterprise multi-agent workflow roles
+├── multi_agent_benchmark.py  # enterprise multi-agent benchmark runner
+├── multi_agent_dataset.py    # enterprise multi-table benchmark dataset
+├── test_cases_multi_agent.py # enterprise workflow test cases
+├── employee_dataset.py       # SQLite employee dataset
+├── config_local.py           # OpenAI-compatible LLM configuration
+├── visualize_radar.py        # radar chart for SQL baseline results
 ├── requirements.txt
 └── README.md
 ```
 
 ---
 
-# Features
-
-This project provides:
-
-* LLM-powered SQL agent (LangChain + OpenAI-compatible API)
-* SQLite employee dataset
-* Automatic benchmark evaluation
-* Multiple evaluation metrics
-* Robustness testing with noisy queries
-* Radar chart visualization
-* Planner-based multi-agent routing
-* SQL + Python data analysis tasks
-* Verifier and trace logging for multi-agent runs
-
----
-
 # Dataset
 
-The benchmark uses a simple employee database.
+The SQL baseline still uses the original `employee_dataset.py`.
 
-The schema is:
+The enterprise multi-agent benchmark uses a separate SQLite database defined in `multi_agent_dataset.py`:
 
-| Column | Description   |
-| ------ | ------------- |
-| name   | employee name |
-| dept   | department    |
-| title  | job title     |
-| salary | salary        |
-
-Example rows:
-
-```
-("John Smith", "Engineering", "ML Engineer", 32000)
-("Sophia Martinez", "Finance", "Accountant", 20000)
-("Alexander Lewis", "Engineering", "Software Architect", 40000)
+```text
+customers(customer_id, customer_name, segment, region, status, annual_contract_value, is_internal)
+orders(order_id, customer_id, order_date, amount, order_status)
+support_tickets(ticket_id, customer_id, created_at, severity, ticket_status, resolution_hours)
+account_managers(customer_id, manager_name, team)
 ```
 
-The dataset is defined in:
-
-```
-employee_dataset.py
-```
-
-and inserted into the SQLite database `company.db` during initialization. 
+It is loaded into `enterprise_company.db` during benchmark initialization. The dataset includes realistic enterprise constraints such as internal test accounts, active/churned/at-risk customer status, closed revenue, support exposure, and account manager ownership.
 
 ---
 
-# SQL Agent
+# SQL Baseline
 
-The SQL agent is implemented in:
+The SQL baseline evaluates a single LLM SQL agent:
 
-```
-llm_sql_agent.py
-```
-
-The agent:
-
-1. Connects to the SQLite database
-2. Uses LangChain's SQL toolkit
-3. Calls an LLM through an OpenAI-compatible interface
-
-The LLM configuration is provided in:
-
-```
-config_local.py
-```
-
-Example configuration: 
-
-```python
-LLM_MODEL = "deepseek-chat"
-LLM_API_KEY = "your_api_key"
-LLM_BASE_URL = "https://api.deepseek.com/v1"
-```
-
----
-
-# SQL Benchmark Tasks
-
-Benchmark tasks are defined in:
-
-```
-test_cases_sql.py
-```
-
-Each benchmark case includes:
-
-```
-Case(
-    id="avg_salary_engineering",
-    question="What is the average salary in Engineering?",
-    gold_sql="SELECT AVG(salary) FROM employees WHERE dept='Engineering';"
-)
-```
-
-The benchmark contains multiple types of SQL reasoning tasks:
-
-### Basic SQL reasoning
-
-* filtering
-* ordering
-* aggregation
-* grouping
-
-### Intermediate queries
-
-* nested queries
-* logical conditions
-* department statistics
-
-### Edge cases
-
-* empty result sets
-
-Example tasks include:
-
-* highest salary employee
-* employees with salary > X
-* average salary per department
-* departments above company average
-* highest salary per department
-
----
-
-# Multi-Agent Benchmark
-
-The multi-agent benchmark extends the SQL benchmark into a small data analysis workflow.
-
-The default local implementation is deterministic so it can run without an API key. It is designed as a reproducible reference pipeline that can later be replaced by real LLM agents.
-
-The agent roles are:
-
-* **Planner Agent**: decides whether a task should use SQL only or SQL + Python.
-* **SQL Agent**: generates a SQL query for database retrieval.
-* **Python Agent**: computes statistical analysis or chart-ready data from SQL rows.
-* **Verifier Agent**: checks route and artifact consistency.
-* **Reporter Agent**: produces the final answer.
-
-Pipeline:
-
-```
-Natural Language Task
-        │
-        ▼
-   Planner Agent
-        │
-        ├── SQL only
-        │
-        └── SQL + Python
-        │
-        ▼
-   Verifier Agent
-        │
-        ▼
-   Reporter Agent
-        │
-        ▼
- Evaluation Metrics
-```
-
-Multi-agent tasks are defined in:
-
-```
-test_cases_multi_agent.py
-```
-
-Each case includes:
-
-```python
-MultiAgentCase(
-    id="salary_variance_department",
-    question="Which department has the largest salary variance? Include the variance value.",
-    gold_route=("sql", "python"),
-    gold_sql="SELECT dept, salary FROM employees;",
-    answer_type="python_result",
-    expected={
-        "analysis": "group_variance_max",
-        "label": "Finance",
-        "value": 37555555.55555555,
-    },
-)
-```
-
----
-
-# Benchmark Pipeline
-
-The benchmark evaluates the ability of the agent to convert **natural language questions into correct SQL queries**.
-
-Evaluation process:
-
-1. Provide a natural language question to the SQL agent.
-2. The LLM generates SQL queries.
-3. The queries are executed on the SQLite database.
-4. The result is compared with the ground truth SQL result.
-5. Evaluation metrics are computed.
-
-Pipeline:
-
-```
+```text
 Natural Language Question
         │
         ▼
@@ -242,213 +62,182 @@ Natural Language Question
    Generated SQL
         │
         ▼
-Execute on SQLite Database
+ Execute on SQLite
         │
         ▼
-   Agent Result
+ External Evaluator
+```
+
+Run it with:
+
+```bash
+python evaluation-metrics.py
+```
+
+This track uses:
+
+* `llm_sql_agent.py`
+* `test_cases_sql.py`
+* `evaluation-metrics.py`
+
+It reports SQL-focused metrics such as accuracy, result completeness, query efficiency, latency efficiency, token efficiency, and robustness.
+
+---
+
+# Enterprise Multi-Agent Benchmark
+
+The enterprise benchmark evaluates a workflow rather than a single SQL generation step.
+
+MVP agent roles:
+
+* **Task Manager Agent**: classifies the task and chooses a route such as query only or query + analysis.
+* **Metric Agent**: maps business wording to a metric definition and business rules.
+* **Data Discovery Agent**: identifies the table, columns, grain, and data contract required by the metric.
+* **Query Agent**: generates a query that satisfies the data contract.
+* **Analysis Agent**: computes statistical or chart-ready results from query rows.
+* **QA & Insight Agent**: checks workflow consistency and produces a grounded answer.
+
+Workflow:
+
+```text
+Natural Language Task
         │
         ▼
-Compare with Ground Truth
+ Task Manager Agent
         │
         ▼
- Evaluation Metrics
+   Metric Agent
+        │
+        ▼
+ Data Discovery Agent
+        │
+        ▼
+    Query Agent
+        │
+        ▼
+   Analysis Agent
+        │
+        ▼
+ QA & Insight Agent
+        │
+        ▼
+ External Evaluator
+```
+
+Example enterprise test case:
+
+```python
+MultiAgentCase(
+    id="manager_revenue_concentration",
+    question="Show closed revenue by account manager and identify the manager with the highest concentration.",
+    expected_route=("query", "analysis"),
+    expected_metric="manager_revenue_concentration",
+    expected_tables=("customers", "orders", "account_managers"),
+    expected_columns=("customer_id", "manager_name", "is_internal", "amount", "order_status"),
+    expected_query="SELECT am.manager_name, o.amount FROM ...",
+    expected_output_type="analysis_result",
+    expected={
+        "analysis": "group_sum_max",
+        "label": "Maya Chen",
+        "value": 116000,
+    },
+)
 ```
 
 ---
 
-# Evaluation Metrics
-
-The benchmark measures several aspects of agent performance.
-
-### Accuracy
-
-Whether the agent returns the correct SQL result compared with the ground truth.
-
----
-
-### Result Completeness
-
-Measures how much of the expected result set is returned.
-
-```
-matched_rows / total_gold_rows
-```
-
----
-
-### Query Efficiency
-
-Measures how many SQL queries the agent executes.
-
-Fewer queries indicate more efficient reasoning.
-
----
-
-### Latency Efficiency
-
-Measures response time for each query.
-
----
-
-# Multi-Agent Metrics
+# Enterprise Metrics
 
 The multi-agent benchmark reports:
 
-* **Final Accuracy**: whether the end-to-end answer is correct.
-* **Tool Routing Accuracy**: whether Planner selected the expected route, such as SQL only or SQL + Python.
-* **SQL Correctness**: whether SQL retrieval returns the expected rows for SQL-only tasks.
-* **Python Correctness**: whether statistical or chart-data analysis is correct.
-* **Verifier Pass Rate**: whether the verifier finds the run internally consistent.
+* **Final Accuracy**: whether the end-to-end workflow result is correct.
+* **Tool Routing Accuracy**: whether Task Manager selected the expected route.
+* **Metric Grounding Accuracy**: whether Metric Agent selected the expected business metric.
+* **Data Discovery Accuracy**: whether Data Discovery Agent selected the expected table and columns.
+* **Query Sufficiency**: whether Query Agent retrieved enough data for downstream analysis.
+* **Query Correctness**: whether direct query tasks return the expected rows.
+* **Analysis Correctness**: whether statistical or chart-data analysis is correct.
+* **QA Pass Rate**: whether QA finds the run internally consistent.
 * **Result Completeness**: whether required facts appear in the final answer.
 * **Robust Final Accuracy**: final accuracy on noisy versions of the same questions.
 * **Robust Drop**: clean final accuracy minus noisy final accuracy.
 * **Average Latency / Round Count / Tool Calls**: collaboration efficiency.
 
+Example summary:
+
+```json
+{
+  "total": 6,
+  "final_accuracy": 1.0,
+  "tool_routing_accuracy": 1.0,
+  "metric_grounding_accuracy": 1.0,
+  "data_discovery_accuracy": 1.0,
+  "query_sufficiency": 1.0,
+  "query_correctness": 1.0,
+  "analysis_correctness": 1.0,
+  "qa_pass_rate": 1.0,
+  "result_completeness": 1.0,
+  "robust_final_accuracy": 0.6667,
+  "robust_drop": 0.3333
+}
+```
+
 ---
 
-# Running the Benchmarks
+# Running The Enterprise Benchmark
 
-Run the original SQL benchmark:
+Run the deterministic reference workflow:
 
-```
-python evaluation-metrics.py
-```
-
-This requires a configured OpenAI-compatible LLM in:
-
-```
-config_local.py
-```
-
-Run the local reproducible multi-agent benchmark:
-
-```
+```bash
 python multi_agent_benchmark.py
 ```
 
-This creates:
+This requires no API key and is useful for validating the benchmark harness.
 
-```
-benchmark_results_multi_agent.json
-```
+Run the LLM-backed workflow:
 
-Run the LLM-backed multi-agent benchmark:
-
-```
+```bash
 python multi_agent_benchmark.py --agent-mode llm
 ```
 
-LLM mode uses the OpenAI-compatible configuration in:
+LLM mode uses the OpenAI-compatible configuration in `config_local.py`.
 
-```
-config_local.py
-```
+To reduce cost during testing:
 
-To reduce cost while testing LLM mode, run a small sample and skip noisy robustness cases:
-
-```
+```bash
 python multi_agent_benchmark.py --agent-mode llm --limit 2 --skip-robust
-```
-
-Optional LLM components:
-
-```
-python multi_agent_benchmark.py --agent-mode llm --llm-verifier --llm-reporter
 ```
 
 By default, LLM mode uses:
 
-* LLM Planner Agent
-* LLM SQL Agent
-* LLM Python Analysis Agent
-* rule-based Verifier Agent
-* rule-based Reporter Agent
+* LLM Task Manager Agent
+* LLM Metric Agent
+* LLM Data Discovery Agent
+* LLM Query Agent
+* deterministic Analysis executor
+* rule-based QA Agent
+* rule-based Insight Agent
 
-This keeps evaluation more stable while still measuring LLM planning, SQL generation, and Python-style analysis. Use `--llm-verifier` and `--llm-reporter` when you want the full agent team to be LLM-backed.
+The deterministic Analysis executor keeps statistical computation tool-grounded instead of relying on model memory.
 
-LLM runs write to:
+Default outputs:
 
-```
+```text
+benchmark_results_multi_agent.json
 benchmark_results_multi_agent_llm.json
-```
-
-Example multi-agent summary:
-
-```json
-{
-  "total": 8,
-  "final_accuracy": 1.0,
-  "tool_routing_accuracy": 1.0,
-  "sql_correctness": 1.0,
-  "python_correctness": 1.0,
-  "verifier_pass_rate": 1.0,
-  "result_completeness": 1.0,
-  "robust_final_accuracy": 0.625,
-  "robust_drop": 0.375
-}
-```
-
-Lower latency indicates faster reasoning and tool usage.
-
----
-
-### Token Efficiency
-
-Measures the token usage of the LLM during inference.
-
-Lower token consumption indicates more efficient prompts and reasoning.
-
----
-
-### Robustness
-
-Evaluates performance when the input question contains noise such as:
-
-* character deletions
-* character swaps
-* keyboard typos
-* word reordering
-
-This simulates real-world user input errors.
-
----
-
-# Installation
-
-### Recommended Python version
-
-```
-Python 3.10 – 3.11
-```
-
----
-
-### Install dependencies
-
-```
-pip install -r requirements.txt
-```
-
-Main dependencies include: 
-
-```
-langchain
-langchain-community
-langchain-openai
-sqlalchemy
 ```
 
 ---
 
 # Configuration
 
-Before running the benchmark, configure your LLM API in:
+Install dependencies:
 
-```
-config_local.py
+```bash
+pip install -r requirements.txt
 ```
 
-Example:
+Configure your OpenAI-compatible API in `config_local.py`:
 
 ```python
 LLM_MODEL = "deepseek-chat"
@@ -456,92 +245,44 @@ LLM_API_KEY = "your_api_key"
 LLM_BASE_URL = "https://api.deepseek.com/v1"
 ```
 
-This file should **not be committed to GitHub** because it contains API keys.
-
----
-
-# Running the SQL Benchmark
-
-Run the benchmark script:
-
-```
-python evaluation-metrics.py
-```
-
-The script will:
-
-1. initialize the SQLite database
-2. build the SQL agent
-3. run all benchmark test cases
-4. compute evaluation metrics
-5. save results to:
-
-```
-benchmark_results.json
-```
+Do not commit real API keys.
 
 ---
 
 # Visualization
 
-To visualize benchmark results, run:
+The radar chart currently targets the SQL baseline output:
 
-```
+```bash
 python visualize_radar.py
 ```
 
-This script reads:
-
-```
-benchmark_results.json
-```
-
-and generates a **radar chart** showing:
-
-* Accuracy
-* Completeness
-* Query Efficiency
-* Latency Efficiency
-* Token Efficiency
-* Robustness
+It reads `benchmark_results.json`.
 
 ---
 
-# Example Benchmark Output
+# Current Scope And Future Work
 
-Example summary:
+Current scope:
 
-```
-{
-  "total": 15,
-  "passed": 13,
-  "accuracy": 0.867,
-  "result_completeness": 0.91,
-  "query_efficiency": 0.83,
-  "latency_efficiency": 0.79,
-  "token_efficiency": 0.81,
-  "robust_accuracy": 0.72
-}
-```
+* separate multi-table SQLite enterprise dataset
+* compact metric glossary
+* six enterprise workflow test cases
+* table/column discovery over one enterprise schema
+* query-only and query + analysis tasks
+* external evaluator for deterministic scoring
 
-The radar chart provides an intuitive overview of agent performance across these dimensions.
+Future work:
 
----
-
-# Possible Extensions
-
-This benchmark framework can be extended with:
-
-* larger SQL datasets
-* multi-table database schemas
-* schema linking evaluation
-* adversarial natural language queries
-* cross-model comparison (GPT, Gemini, DeepSeek, Qwen)
+* multi-table enterprise schemas
+* richer metric documentation and business glossary retrieval
+* permission and governance constraints
+* QA fault-injection evaluation
+* self-correction loops after QA failures
+* structured Insight Agent output with evidence and assumptions
 
 ---
 
 # License
 
-This project is intended for **research and educational purposes**.
-
----
+This project is intended for research and educational purposes.

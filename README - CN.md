@@ -1,20 +1,13 @@
+# 企业数据多智能体 Benchmark
 
+这是一个用于评估企业数据场景下 LLM Agent 的轻量级 Benchmark。
 
----
+项目包含两条评测线：
 
-# LLM SQL Agent Benchmark（SQL 智能体评测框架）
+* **SQL Baseline**：单智能体把自然语言问题转换成 SQL。
+* **企业多智能体 Benchmark**：多个 Agent 协作完成业务问题理解、指标口径识别、数据发现、查询生成、分析计算、QA 和洞察输出。
 
-一个用于评估 **基于大语言模型（LLM）的 SQL Agent** 的轻量级 Benchmark 框架。
-
-本项目构建了一个 SQL Agent，通过 **OpenAI 兼容 API（如 DeepSeek 或 Qwen）调用 LLM**，并评估其将自然语言问题转换为 SQL 查询的能力。
-
-Benchmark 会从多个维度评估 Agent 的表现，包括：
-
-* **准确率（Accuracy）**
-* **结果完整性（Completeness）**
-* **效率（Efficiency）**
-* **鲁棒性（Robustness）**
-* **响应延迟（Latency）**
+当前版本是演示友好的 MVP：企业多智能体部分使用单独的多表 SQLite 数据集，覆盖客户、订单、支持工单和客户经理归属；同时保持实现足够小，方便演讲和代码检查。
 
 ---
 
@@ -22,276 +15,201 @@ Benchmark 会从多个维度评估 Agent 的表现，包括：
 
 ```
 .
-├── llm_sql_agent.py          # SQL Agent实现
-├── benchmark_sql_agent.py    # Benchmark评测脚本
-├── test_cases_sql.py         # Benchmark测试任务
-├── employee_dataset.py       # SQLite示例数据集
-├── config_local.py           # LLM API配置
-├── visualize_radar.py        # 雷达图可视化
+├── llm_sql_agent.py          # 单 SQL Agent baseline
+├── evaluation-metrics.py     # SQL baseline 评测脚本
+├── test_cases_sql.py         # SQL baseline 测试用例
+├── multi_agent_agents.py     # 企业多智能体工作流角色
+├── multi_agent_benchmark.py  # 企业多智能体评测入口
+├── multi_agent_dataset.py    # 企业多表 benchmark 数据集
+├── test_cases_multi_agent.py # 企业工作流测试用例
+├── employee_dataset.py       # SQLite 员工数据集
+├── config_local.py           # OpenAI-compatible LLM 配置
+├── visualize_radar.py        # SQL baseline 雷达图
 ├── requirements.txt
 └── README.md
 ```
 
 ---
 
-# 项目功能
-
-本项目包含以下功能：
-
-* 基于 **LangChain + LLM** 的 SQL Agent
-* SQLite 员工数据库示例
-* 自动化 Benchmark 评测
-* 多维度评估指标
-* 噪声输入鲁棒性测试
-* 雷达图结果可视化
-
----
-
 # 数据集
 
-Benchmark 使用一个简单的员工数据库。
+SQL baseline 仍然使用原来的 `employee_dataset.py`。
 
-数据库结构如下：
+企业多智能体 benchmark 使用 `multi_agent_dataset.py` 中定义的独立多表数据库：
 
-| 列名     | 含义   |
-| ------ | ---- |
-| name   | 员工姓名 |
-| dept   | 部门   |
-| title  | 职位   |
-| salary | 工资   |
-
-示例数据：
-
-```
-("John Smith", "Engineering", "ML Engineer", 32000)
-("Sophia Martinez", "Finance", "Accountant", 20000)
-("Alexander Lewis", "Engineering", "Software Architect", 40000)
+```text
+customers(customer_id, customer_name, segment, region, status, annual_contract_value, is_internal)
+orders(order_id, customer_id, order_date, amount, order_status)
+support_tickets(ticket_id, customer_id, created_at, severity, ticket_status, resolution_hours)
+account_managers(customer_id, manager_name, team)
 ```
 
-数据集定义在：
-
-```
-employee_dataset.py
-```
-
-数据库 `company.db` 会在程序初始化时自动创建并写入数据。 
+运行时会写入 `enterprise_company.db`。该数据集包含 internal test account、active/churned/at-risk 客户状态、closed revenue、支持工单暴露和客户经理归属等企业数据约束。
 
 ---
 
-# SQL Agent
+# SQL Baseline
 
-SQL Agent 的实现文件：
+SQL baseline 评估单个 LLM SQL Agent：
 
-```
-llm_sql_agent.py
-```
-
-该 Agent 的工作流程：
-
-1. 连接 SQLite 数据库
-2. 使用 LangChain SQL Toolkit
-3. 调用 LLM 生成 SQL 查询
-
-LLM 的配置在：
-
-```
-config_local.py
+```text
+自然语言问题
+    ↓
+LLM SQL Agent
+    ↓
+生成 SQL
+    ↓
+SQLite 执行
+    ↓
+外部 Evaluator 打分
 ```
 
-示例配置如下： 
+运行：
+
+```bash
+python evaluation-metrics.py
+```
+
+这一部分主要复用旧项目，用于作为 Query Agent 能力的 baseline。
+
+---
+
+# 企业多智能体 Benchmark
+
+企业多智能体 benchmark 评估的是完整数据工作流，而不是单条 SQL 生成。
+
+MVP Agent 角色：
+
+* **Task Manager Agent**：判断任务类型，选择 query only 或 query + analysis。
+* **Metric Agent**：把业务表达映射到指标口径和业务规则。
+* **Data Discovery Agent**：选择需要的数据表、字段、粒度和数据契约。
+* **Query Agent**：生成满足数据契约的查询。
+* **Analysis Agent**：基于查询结果计算统计值或图表数据。
+* **QA & Insight Agent**：检查流程一致性，并输出有依据的结论。
+
+工作流：
+
+```text
+业务问题
+  ↓
+Task Manager Agent
+  ↓
+Metric Agent
+  ↓
+Data Discovery Agent
+  ↓
+Query Agent
+  ↓
+Analysis Agent
+  ↓
+QA & Insight Agent
+  ↓
+外部 Evaluator
+```
+
+测试用例示例：
 
 ```python
-LLM_MODEL = "deepseek-chat"
-LLM_API_KEY = "your_api_key"
-LLM_BASE_URL = "https://api.deepseek.com/v1"
-```
-
----
-
-# Benchmark 测试任务
-
-Benchmark 查询定义在：
-
-```
-test_cases_sql.py
-```
-
-每个测试任务包含：
-
-```
-Case(
-    id="avg_salary_engineering",
-    question="What is the average salary in Engineering?",
-    gold_sql="SELECT AVG(salary) FROM employees WHERE dept='Engineering';"
+MultiAgentCase(
+    id="manager_revenue_concentration",
+    question="Show closed revenue by account manager and identify the manager with the highest concentration.",
+    expected_route=("query", "analysis"),
+    expected_metric="manager_revenue_concentration",
+    expected_tables=("customers", "orders", "account_managers"),
+    expected_columns=("customer_id", "manager_name", "is_internal", "amount", "order_status"),
+    expected_query="SELECT am.manager_name, o.amount FROM ...",
+    expected_output_type="analysis_result",
+    expected={
+        "analysis": "group_sum_max",
+        "label": "Maya Chen",
+        "value": 116000,
+    },
 )
 ```
 
-Benchmark 包含多种 SQL 推理任务：
-
-### 基础 SQL 查询
-
-* 条件过滤
-* 排序
-* 聚合计算
-* 分组查询
-
-### 中等复杂度查询
-
-* 嵌套查询
-* 逻辑条件
-* 部门统计
-
-### 边界情况
-
-* 空结果查询
-
-示例任务：
-
-* 查询最高工资员工
-* 查询工资大于 X 的员工
-* 每个部门的平均工资
-* 平均工资高于公司平均值的部门
-* 每个部门工资最高的员工
-
 ---
 
-# Benchmark 评测流程
+# 企业多智能体指标
 
-该 Benchmark 用于评估 Agent **将自然语言问题转换为 SQL 查询的能力**。
+当前评测指标包括：
 
-评测流程如下：
- 
-1. 向 SQL 代理提供自然语言问题。
-2. LLM 生成 SQL 查询。
-3. 在 SQLite 数据库上执行查询。
-4. 将结果与真实 SQL 结果进行比较。
-5. 计算评估指标。
+* **Final Accuracy**：端到端结果是否正确。
+* **Tool Routing Accuracy**：Task Manager 是否选择了正确流程。
+* **Metric Grounding Accuracy**：Metric Agent 是否识别了正确业务指标。
+* **Data Discovery Accuracy**：Data Discovery Agent 是否选择了正确表和字段。
+* **Query Sufficiency**：Query Agent 是否取到了足够支持后续分析的数据。
+* **Query Correctness**：query-only 任务的查询结果是否正确。
+* **Analysis Correctness**：分析计算或图表数据是否正确。
+* **QA Pass Rate**：QA 是否认为流程内部一致。
+* **Result Completeness**：最终回答是否覆盖必要事实。
+* **Robust Final Accuracy**：噪声输入下的端到端准确率。
+* **Robust Drop**：clean accuracy 与 noisy accuracy 的差距。
+* **Average Latency / Round Count / Tool Calls**：协作成本。
 
-流程示意：
+示例 summary：
 
-```
-自然语言问题
-      │
-      ▼
-  LLM SQL Agent
-      │
-      ▼
-  生成 SQL
-      │
-      ▼
-SQLite数据库执行
-      │
-      ▼
-Agent结果
-      │
-      ▼
-与Ground Truth比较
-      │
-      ▼
-评估指标
+```json
+{
+  "total": 6,
+  "final_accuracy": 1.0,
+  "tool_routing_accuracy": 1.0,
+  "metric_grounding_accuracy": 1.0,
+  "data_discovery_accuracy": 1.0,
+  "query_sufficiency": 1.0,
+  "query_correctness": 1.0,
+  "analysis_correctness": 1.0,
+  "qa_pass_rate": 1.0,
+  "result_completeness": 1.0,
+  "robust_final_accuracy": 0.6667,
+  "robust_drop": 0.3333
+}
 ```
 
 ---
 
-# 评估指标
+# 运行企业多智能体 Benchmark
 
-Benchmark 从多个维度评估 SQL Agent。
+运行 deterministic reference workflow：
 
----
-
-## 1 Accuracy（准确率）
-
-判断 Agent 返回结果是否与 Ground Truth SQL 的结果一致。
-
----
-
-## 2 Result Completeness（结果完整性）
-
-衡量返回结果是否完整：
-
-```
-matched_rows / total_gold_rows
+```bash
+python multi_agent_benchmark.py
 ```
 
----
+运行 LLM-backed workflow：
 
-## 3 Query Efficiency（查询效率）
-
-统计 Agent 在回答一个问题时执行了多少次 SQL。
-
-执行次数越少，说明推理效率越高。
-
----
-
-## 4 Latency Efficiency（延迟效率）
-
-测量 Agent 回答问题所需时间。
-
-响应时间越短越好。
-
----
-
-## 5 Token Efficiency（Token效率）
-
-统计 LLM 调用过程中使用的 Token 数量。
-
-Token 越少说明 Prompt 和推理更加高效。
-
----
-
-## 6 Robustness（鲁棒性）
-
-评估在 **输入存在噪声时** Agent 的表现。
-
-噪声包括：
-
-* 删除字符
-* 字符交换
-* 键盘输入错误
-* 单词顺序扰动
-
-模拟真实用户输入错误。
-
----
-
-# 安装
-
-### 推荐 Python 版本
-
-```
-Python 3.10 – 3.11
+```bash
+python multi_agent_benchmark.py --agent-mode llm
 ```
 
----
+减少 LLM 测试成本：
 
-### 安装依赖
-
-```
-pip install -r requirements.txt
+```bash
+python multi_agent_benchmark.py --agent-mode llm --limit 2 --skip-robust
 ```
 
-主要依赖包括： 
+默认 LLM 模式使用：
 
-```
-langchain
-langchain-community
-langchain-openai
-sqlalchemy
-```
+* LLM Task Manager Agent
+* LLM Metric Agent
+* LLM Data Discovery Agent
+* LLM Query Agent
+* deterministic Analysis executor
+* rule-based QA Agent
+* rule-based Insight Agent
+
+Analysis executor 默认是确定性工具，避免让模型凭记忆做统计计算。
 
 ---
 
 # 配置
 
-运行 Benchmark 之前，需要配置 LLM API：
+安装依赖：
 
-编辑文件：
-
-```
-config_local.py
+```bash
+pip install -r requirements.txt
 ```
 
-示例：
+在 `config_local.py` 中配置 OpenAI-compatible API：
 
 ```python
 LLM_MODEL = "deepseek-chat"
@@ -299,94 +217,26 @@ LLM_API_KEY = "your_api_key"
 LLM_BASE_URL = "https://api.deepseek.com/v1"
 ```
 
-该文件包含 API Key，**不建议提交到 GitHub**。
+不要提交真实 API key。
 
 ---
 
-# 运行 Benchmark
+# 当前范围和后续优化
 
-运行：
+当前范围：
 
-```
-python benchmark_sql_agent.py
-```
+* 独立多表 SQLite 企业数据集
+* 小型 metric glossary
+* 6 个企业 workflow 测试用例
+* 单企业 schema 下的数据发现
+* query-only 与 query + analysis 任务
+* 外部 evaluator 确定性打分
 
-该脚本会：
+后续优化：
 
-1. 初始化 SQLite 数据库
-2. 构建 SQL 代理
-3. 运行所有基准测试用例
-4. 计算评估指标
-5. 将结果保存到：
-
-```
-benchmark_results.json
-```
-
----
-
-# 结果可视化
-
-运行：
-
-```
-python visualize_radar.py
-```
-
-脚本会读取：
-
-```
-benchmark_results.json
-```
-
-并绘制 **雷达图（Radar Chart）**。
-
-展示指标包括：
-
-* Accuracy
-* Completeness
-* Query Efficiency
-* Latency Efficiency
-* Token Efficiency
-* Robustness
-
----
-
-# 示例 Benchmark 输出
-
-示例结果：
-
-```
-{
-  "total": 15,
-  "passed": 13,
-  "accuracy": 0.867,
-  "result_completeness": 0.91,
-  "query_efficiency": 0.83,
-  "latency_efficiency": 0.79,
-  "token_efficiency": 0.81,
-  "robust_accuracy": 0.72
-}
-```
-
-雷达图可以直观展示 Agent 在各个维度的表现。
-
----
-
-# 可扩展方向
-
-该 Benchmark 框架可以扩展到：
-
-* 更大的 SQL 数据集
-* 多表数据库结构
-* Schema Linking 评估
-* 对抗性自然语言查询
-* 多模型对比（GPT / Gemini / DeepSeek / Qwen）
-
----
-
-# License
-
-本项目仅用于 **研究与教学目的**。
-
----
+* 多表企业 schema
+* 更丰富的指标文档和业务 glossary 检索
+* 权限和治理约束
+* QA fault-injection 评测
+* QA 失败后的 self-correction loop
+* 结构化 Insight 输出，包括证据、假设和限制

@@ -209,6 +209,7 @@ __marimo__/
 # Local benchmark artifacts
 .DS_Store
 company.db
+enterprise_company.db
 benchmark_results.json
 benchmark_results_multi_agent.json
 benchmark_results_multi_agent_llm.json

@@ -1,155 +1,175 @@
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
 
 @dataclass
 class MultiAgentCase:
     id: str
     question: str
-    gold_route: Tuple[str, ...]
-    gold_sql: str
-    answer_type: str
+    expected_route: Tuple[str, ...]
+    expected_metric: str
+    expected_tables: Tuple[str, ...]
+    expected_columns: Tuple[str, ...]
+    expected_query: str
+    expected_output_type: str
     expected: Dict[str, Any]
-    notes: str = ""
+    expected_result_columns: Tuple[str, ...] = ()
+    query_contract: str = "exact_result"
     required_facts: List[str] = field(default_factory=list)
+    notes: str = ""
 
 
-MULTI_AGENT_TEST_CASES: List[MultiAgentCase] = [
+MULTI_AGENT_TEST_CASES = [
     MultiAgentCase(
-        id="highest_salary_sql_only",
-        question="Who earns the highest salary? Return the employee name and salary.",
-        gold_route=("sql",),
-        gold_sql="SELECT name, salary FROM employees ORDER BY salary DESC LIMIT 1;",
-        answer_type="sql_rows",
-        expected={"rows": [("Alexander Lewis", 40000)]},
-        required_facts=["Alexander Lewis", "40000"],
+        id="high_value_active_revenue",
+        question="How much closed revenue came from high-value active customers? Exclude internal accounts.",
+        expected_route=("metric", "discovery", "query"),
+        expected_metric="high_value_active_revenue",
+        expected_tables=("customers", "orders"),
+        expected_columns=("customer_id", "customer_name", "status", "is_internal", "annual_contract_value", "amount", "order_status"),
+        expected_query="""
+        SELECT SUM(o.amount) AS revenue
+        FROM customers c
+        JOIN orders o ON c.customer_id = o.customer_id
+        WHERE c.status='active'
+          AND c.is_internal=0
+          AND c.annual_contract_value >= 20000
+          AND o.order_status='closed';
+        """,
+        expected_output_type="query_rows",
+        expected={"rows": [(139000,)]},
+        expected_result_columns=("revenue",),
+        required_facts=["139000"],
     ),
     MultiAgentCase(
-        id="avg_salary_by_dept_sql_only",
-        question="Show average salary per department, from highest to lowest.",
-        gold_route=("sql",),
-        gold_sql=(
-            "SELECT dept, AVG(salary) AS avg_salary "
-            "FROM employees GROUP BY dept ORDER BY avg_salary DESC;"
-        ),
-        answer_type="sql_rows",
+        id="at_risk_open_support",
+        question="Which at-risk customers currently have open high-severity support exposure?",
+        expected_route=("metric", "discovery", "query"),
+        expected_metric="at_risk_open_support",
+        expected_tables=("customers", "support_tickets"),
+        expected_columns=("customer_id", "customer_name", "status", "is_internal", "severity", "ticket_status", "resolution_hours"),
+        expected_query="""
+        SELECT c.customer_name, t.severity, t.resolution_hours
+        FROM customers c
+        JOIN support_tickets t ON c.customer_id = t.customer_id
+        WHERE c.status='at_risk'
+          AND c.is_internal=0
+          AND t.ticket_status='open'
+          AND t.severity IN ('high', 'critical')
+        ORDER BY t.resolution_hours DESC;
+        """,
+        expected_output_type="query_rows",
+        expected={"rows": [("Delta Health", "critical", 72), ("Delta Health", "high", 54)]},
+        expected_result_columns=("customer_name", "severity", "resolution_hours"),
+        required_facts=["Delta Health", "critical", "72"],
+    ),
+    MultiAgentCase(
+        id="manager_revenue_concentration",
+        question="Show closed revenue by account manager and identify the manager with the highest concentration.",
+        expected_route=("metric", "discovery", "query", "analysis"),
+        expected_metric="manager_revenue_concentration",
+        expected_tables=("customers", "orders", "account_managers"),
+        expected_columns=("customer_id", "manager_name", "is_internal", "amount", "order_status"),
+        expected_query="""
+        SELECT am.manager_name, o.amount
+        FROM customers c
+        JOIN orders o ON c.customer_id = o.customer_id
+        JOIN account_managers am ON c.customer_id = am.customer_id
+        WHERE c.is_internal=0
+          AND o.order_status='closed';
+        """,
+        expected_output_type="analysis_result",
         expected={
-            "rows": [
-                ("Engineering", 32285.714285714286),
-                ("Finance", 27333.333333333332),
-                ("Product", 26500.0),
-                ("Marketing", 21500.0),
-                ("Sales", 21000.0),
-                ("HR", 21000.0),
-            ]
+            "analysis": "group_sum_max",
+            "label": "Maya Chen",
+            "value": 116000,
+            "all_values": {
+                "Maya Chen": 116000,
+                "Noah Patel": 27000,
+                "Lena Ortiz": 47000,
+                "Aiko Tanaka": 65000,
+            },
         },
-        required_facts=["Engineering", "32285"],
+        expected_result_columns=("manager_name", "amount"),
+        query_contract="aggregate_allowed",
+        required_facts=["Maya Chen", "116000"],
     ),
     MultiAgentCase(
-        id="salary_variance_department",
-        question="Which department has the largest salary variance? Include the variance value.",
-        gold_route=("sql", "python"),
-        gold_sql="SELECT dept, salary FROM employees;",
-        answer_type="python_result",
+        id="regional_active_revenue_chart",
+        question="Prepare chart-ready data for closed revenue by region among active customers.",
+        expected_route=("metric", "discovery", "query", "analysis"),
+        expected_metric="regional_active_customer_revenue",
+        expected_tables=("customers", "orders"),
+        expected_columns=("customer_id", "region", "status", "is_internal", "amount", "order_status"),
+        expected_query="""
+        SELECT c.region, o.amount
+        FROM customers c
+        JOIN orders o ON c.customer_id = o.customer_id
+        WHERE c.status='active'
+          AND c.is_internal=0
+          AND o.order_status='closed';
+        """,
+        expected_output_type="analysis_result",
         expected={
-            "analysis": "group_variance_max",
-            "group_key": "dept",
-            "value_key": "salary",
-            "label": "Finance",
-            "value": 37555555.55555555,
-            "tolerance": 1e-6,
-        },
-        required_facts=["Finance", "37555555"],
-    ),
-    MultiAgentCase(
-        id="salary_std_by_dept",
-        question="Calculate each department's salary standard deviation and rank them from high to low.",
-        gold_route=("sql", "python"),
-        gold_sql="SELECT dept, salary FROM employees;",
-        answer_type="python_result",
-        expected={
-            "analysis": "group_std_desc",
-            "group_key": "dept",
-            "value_key": "salary",
-            "rows": [
-                ("Finance", 6128.258770283412),
-                ("Engineering", 4620.274751084637),
-                ("Sales", 3559.026084010437),
-                ("HR", 3559.026084010437),
-                ("Product", 1500.0),
-                ("Marketing", 500.0),
-            ],
-            "tolerance": 1e-6,
-        },
-        required_facts=["Finance", "Engineering", "6128"],
-    ),
-    MultiAgentCase(
-        id="largest_salary_range",
-        question="Which department has the largest gap between its highest and lowest salary?",
-        gold_route=("sql", "python"),
-        gold_sql="SELECT dept, salary FROM employees;",
-        answer_type="python_result",
-        expected={
-            "analysis": "group_range_max",
-            "group_key": "dept",
-            "value_key": "salary",
-            "label": "Finance",
-            "value": 15000,
-            "tolerance": 0,
-        },
-        required_facts=["Finance", "15000"],
-    ),
-    MultiAgentCase(
-        id="salary_distribution_chart_data",
-        question="Prepare chart data for a bar chart of average salary by department.",
-        gold_route=("sql", "python"),
-        gold_sql="SELECT dept, salary FROM employees;",
-        answer_type="chart_data",
-        expected={
-            "analysis": "group_mean_chart",
-            "group_key": "dept",
-            "value_key": "salary",
+            "analysis": "group_sum_chart",
             "chart_type": "bar",
             "rows": [
-                ("Engineering", 32285.714285714286),
-                ("Finance", 27333.333333333332),
-                ("HR", 21000.0),
-                ("Marketing", 21500.0),
-                ("Product", 26500.0),
-                ("Sales", 21000.0),
+                ("APAC", 23000),
+                ("Europe", 54000),
+                ("North America", 89000),
             ],
-            "tolerance": 1e-6,
         },
-        required_facts=["bar", "Engineering", "32285"],
+        expected_result_columns=("region", "amount"),
+        query_contract="aggregate_allowed",
+        required_facts=["bar", "North America", "89000"],
     ),
     MultiAgentCase(
-        id="highest_paid_vs_dept_average",
-        question="For the highest paid employee, compare their salary with their department average.",
-        gold_route=("sql", "python"),
-        gold_sql="SELECT name, dept, salary FROM employees;",
-        answer_type="python_result",
+        id="segment_active_revenue_mix",
+        question="Prepare chart-ready data for closed revenue by customer segment among active customers.",
+        expected_route=("metric", "discovery", "query", "analysis"),
+        expected_metric="segment_active_revenue_mix",
+        expected_tables=("customers", "orders"),
+        expected_columns=("customer_id", "segment", "status", "is_internal", "amount", "order_status"),
+        expected_query="""
+        SELECT c.segment, o.amount
+        FROM customers c
+        JOIN orders o ON c.customer_id = o.customer_id
+        WHERE c.status='active'
+          AND c.is_internal=0
+          AND o.order_status='closed';
+        """,
+        expected_output_type="analysis_result",
         expected={
-            "analysis": "top_employee_vs_group_mean",
-            "group_key": "dept",
-            "value_key": "salary",
-            "name_key": "name",
-            "name": "Alexander Lewis",
-            "dept": "Engineering",
-            "salary": 40000,
-            "dept_average": 32285.714285714286,
-            "difference": 7714.285714285714,
-            "tolerance": 1e-6,
+            "analysis": "group_sum_chart",
+            "chart_type": "bar",
+            "rows": [
+                ("Enterprise", 116000),
+                ("Mid-Market", 41000),
+                ("SMB", 9000),
+            ],
         },
-        required_facts=["Alexander Lewis", "40000", "32285", "7714"],
+        expected_result_columns=("segment", "amount"),
+        query_contract="aggregate_allowed",
+        required_facts=["bar", "Enterprise", "116000"],
     ),
     MultiAgentCase(
-        id="no_result_sql_only",
-        question="List employees with salary above 100000.",
-        gold_route=("sql",),
-        gold_sql="SELECT name, salary FROM employees WHERE salary > 100000;",
-        answer_type="sql_rows",
-        expected={"rows": []},
-        notes="edge: empty result",
-        required_facts=["[]"],
+        id="churned_customer_revenue",
+        question="How much closed revenue came from churned customers? Exclude internal accounts.",
+        expected_route=("metric", "discovery", "query"),
+        expected_metric="churned_customer_revenue",
+        expected_tables=("customers", "orders"),
+        expected_columns=("customer_id", "customer_name", "status", "is_internal", "amount", "order_status"),
+        expected_query="""
+        SELECT SUM(o.amount) AS revenue
+        FROM customers c
+        JOIN orders o ON c.customer_id = o.customer_id
+        WHERE c.status='churned'
+          AND c.is_internal=0
+          AND o.order_status='closed';
+        """,
+        expected_output_type="query_rows",
+        expected={"rows": [(42000,)]},
+        expected_result_columns=("revenue",),
+        required_facts=["42000"],
     ),
 ]
