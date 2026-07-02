@@ -73,8 +73,6 @@ METRIC_GLOSSARY = {
             "High-value means annual_contract_value >= 20000.",
             "Revenue is the sum of closed order amounts.",
         ],
-        "required_tables": ["customers", "orders"],
-        "required_columns": ["customer_id", "customer_name", "status", "is_internal", "annual_contract_value", "amount", "order_status"],
     },
     "at_risk_open_support": {
         "definition": "Open high or critical support exposure for non-internal customers marked at risk.",
@@ -83,8 +81,6 @@ METRIC_GLOSSARY = {
             "Only include customers with status = at_risk.",
             "Only include support tickets with status = open and severity in high or critical.",
         ],
-        "required_tables": ["customers", "support_tickets"],
-        "required_columns": ["customer_id", "customer_name", "status", "is_internal", "severity", "ticket_status", "resolution_hours"],
     },
     "manager_revenue_concentration": {
         "definition": "Closed revenue by account manager, excluding internal accounts.",
@@ -93,8 +89,6 @@ METRIC_GLOSSARY = {
             "Revenue is the sum of closed order amounts.",
             "Group customers by account manager.",
         ],
-        "required_tables": ["customers", "orders", "account_managers"],
-        "required_columns": ["customer_id", "manager_name", "is_internal", "amount", "order_status"],
     },
     "regional_active_customer_revenue": {
         "definition": "Closed revenue by region for active, non-internal customers.",
@@ -103,8 +97,6 @@ METRIC_GLOSSARY = {
             "Only include customers with status = active.",
             "Revenue is the sum of closed order amounts grouped by region.",
         ],
-        "required_tables": ["customers", "orders"],
-        "required_columns": ["customer_id", "region", "status", "is_internal", "amount", "order_status"],
     },
     "segment_active_revenue_mix": {
         "definition": "Closed revenue by customer segment for active, non-internal customers.",
@@ -113,8 +105,6 @@ METRIC_GLOSSARY = {
             "Only include customers with status = active.",
             "Revenue is the sum of closed order amounts grouped by segment.",
         ],
-        "required_tables": ["customers", "orders"],
-        "required_columns": ["customer_id", "segment", "status", "is_internal", "amount", "order_status"],
     },
     "churned_customer_revenue": {
         "definition": "Closed revenue from churned, non-internal customers.",
@@ -123,8 +113,65 @@ METRIC_GLOSSARY = {
             "Only include customers with status = churned.",
             "Revenue is the sum of closed order amounts.",
         ],
-        "required_tables": ["customers", "orders"],
-        "required_columns": ["customer_id", "customer_name", "status", "is_internal", "amount", "order_status"],
+    },
+}
+
+
+DATA_DISCOVERY_CATALOG = {
+    "high_value_active_revenue": {
+        "tables": ["customers", "orders"],
+        "columns": ["amount"],
+        "join_keys": ["customers.customer_id = orders.customer_id"],
+        "filters": [
+            "customers.status = 'active'",
+            "customers.is_internal = 0",
+            "customers.annual_contract_value >= 20000",
+            "orders.order_status = 'closed'",
+        ],
+        "grain": "one row per qualifying closed order; aggregate to one revenue total",
+    },
+    "at_risk_open_support": {
+        "tables": ["customers", "support_tickets"],
+        "columns": ["customer_name", "severity", "resolution_hours"],
+        "join_keys": ["customers.customer_id = support_tickets.customer_id"],
+        "filters": [
+            "customers.status = 'at_risk'",
+            "customers.is_internal = 0",
+            "support_tickets.ticket_status = 'open'",
+            "support_tickets.severity IN ('high', 'critical')",
+        ],
+        "grain": "one row per open high-severity support ticket",
+    },
+    "manager_revenue_concentration": {
+        "tables": ["customers", "orders", "account_managers"],
+        "columns": ["manager_name", "amount"],
+        "join_keys": [
+            "customers.customer_id = orders.customer_id",
+            "customers.customer_id = account_managers.customer_id",
+        ],
+        "filters": ["customers.is_internal = 0", "orders.order_status = 'closed'"],
+        "grain": "one row per qualifying closed order with account manager ownership",
+    },
+    "regional_active_customer_revenue": {
+        "tables": ["customers", "orders"],
+        "columns": ["region", "amount"],
+        "join_keys": ["customers.customer_id = orders.customer_id"],
+        "filters": ["customers.status = 'active'", "customers.is_internal = 0", "orders.order_status = 'closed'"],
+        "grain": "one row per qualifying closed order grouped by customer region",
+    },
+    "segment_active_revenue_mix": {
+        "tables": ["customers", "orders"],
+        "columns": ["segment", "amount"],
+        "join_keys": ["customers.customer_id = orders.customer_id"],
+        "filters": ["customers.status = 'active'", "customers.is_internal = 0", "orders.order_status = 'closed'"],
+        "grain": "one row per qualifying closed order grouped by customer segment",
+    },
+    "churned_customer_revenue": {
+        "tables": ["customers", "orders"],
+        "columns": ["amount"],
+        "join_keys": ["customers.customer_id = orders.customer_id"],
+        "filters": ["customers.status = 'churned'", "customers.is_internal = 0", "orders.order_status = 'closed'"],
+        "grain": "one row per churned non-internal customer's closed order; aggregate to one revenue total",
     },
 }
 

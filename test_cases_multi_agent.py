@@ -26,7 +26,7 @@ MULTI_AGENT_TEST_CASES = [
         expected_route=("metric", "discovery", "query"),
         expected_metric="high_value_active_revenue",
         expected_tables=("customers", "orders"),
-        expected_columns=("customer_id", "customer_name", "status", "is_internal", "annual_contract_value", "amount", "order_status"),
+        expected_columns=("amount",),
         expected_query="""
         SELECT SUM(o.amount) AS revenue
         FROM customers c
@@ -47,7 +47,7 @@ MULTI_AGENT_TEST_CASES = [
         expected_route=("metric", "discovery", "query"),
         expected_metric="at_risk_open_support",
         expected_tables=("customers", "support_tickets"),
-        expected_columns=("customer_id", "customer_name", "status", "is_internal", "severity", "ticket_status", "resolution_hours"),
+        expected_columns=("customer_name", "severity", "resolution_hours"),
         expected_query="""
         SELECT c.customer_name, t.severity, t.resolution_hours
         FROM customers c
@@ -69,7 +69,7 @@ MULTI_AGENT_TEST_CASES = [
         expected_route=("metric", "discovery", "query", "analysis"),
         expected_metric="manager_revenue_concentration",
         expected_tables=("customers", "orders", "account_managers"),
-        expected_columns=("customer_id", "manager_name", "is_internal", "amount", "order_status"),
+        expected_columns=("manager_name", "amount"),
         expected_query="""
         SELECT am.manager_name, o.amount
         FROM customers c
@@ -100,7 +100,7 @@ MULTI_AGENT_TEST_CASES = [
         expected_route=("metric", "discovery", "query", "analysis"),
         expected_metric="regional_active_customer_revenue",
         expected_tables=("customers", "orders"),
-        expected_columns=("customer_id", "region", "status", "is_internal", "amount", "order_status"),
+        expected_columns=("region", "amount"),
         expected_query="""
         SELECT c.region, o.amount
         FROM customers c
@@ -129,7 +129,7 @@ MULTI_AGENT_TEST_CASES = [
         expected_route=("metric", "discovery", "query", "analysis"),
         expected_metric="segment_active_revenue_mix",
         expected_tables=("customers", "orders"),
-        expected_columns=("customer_id", "segment", "status", "is_internal", "amount", "order_status"),
+        expected_columns=("segment", "amount"),
         expected_query="""
         SELECT c.segment, o.amount
         FROM customers c
@@ -158,7 +158,7 @@ MULTI_AGENT_TEST_CASES = [
         expected_route=("metric", "discovery", "query"),
         expected_metric="churned_customer_revenue",
         expected_tables=("customers", "orders"),
-        expected_columns=("customer_id", "customer_name", "status", "is_internal", "amount", "order_status"),
+        expected_columns=("amount",),
         expected_query="""
         SELECT SUM(o.amount) AS revenue
         FROM customers c

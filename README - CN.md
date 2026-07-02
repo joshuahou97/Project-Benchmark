@@ -85,7 +85,10 @@ MVP Agent 角色：
 * **Data Discovery Agent**：选择需要的数据表、字段、粒度和数据契约。
 * **Query Agent**：生成满足数据契约的查询。
 * **Analysis Agent**：基于查询结果计算统计值或图表数据。
-* **QA & Insight Agent**：检查流程一致性，并输出有依据的结论。
+* **QA Agent**：检查流程一致性、数据契约覆盖、查询输出充分性和分析结果形态。
+* **Insight Agent**：把查询或分析结果转成有依据的业务结论。
+
+Metric Agent 和 Data Discovery Agent 被刻意拆开：Metric Agent 负责回答“业务指标是什么意思”，Data Discovery Agent 负责回答“数据在哪里、如何取”，包括 join key、filter、grain 和下游查询契约。
 
 工作流：
 
@@ -102,7 +105,9 @@ Query Agent
   ↓
 Analysis Agent
   ↓
-QA & Insight Agent
+QA Agent
+  ↓
+Insight Agent
   ↓
 外部 Evaluator
 ```
@@ -134,17 +139,20 @@ MultiAgentCase(
 当前评测指标包括：
 
 * **Final Accuracy**：端到端结果是否正确。
-* **Tool Routing Accuracy**：Task Manager 是否选择了正确流程。
+* **Route Exact Match Accuracy**：Task Manager 是否选择了完全一致的流程。
+* **Route Coverage Accuracy**：规划流程是否覆盖所有必要 Agent。
+* **Average Unnecessary Step Count**：平均每个 case 多调用了多少不必要步骤。
 * **Metric Grounding Accuracy**：Metric Agent 是否识别了正确业务指标。
-* **Data Discovery Accuracy**：Data Discovery Agent 是否选择了正确表和字段。
+* **Data Discovery Accuracy**：Data Discovery Agent 是否覆盖必要表、字段、join 和 filter。
+* **Data Discovery Column Precision**：DataDiscovery 字段契约是否避免不必要字段。
 * **Query Sufficiency**：Query Agent 是否取到了足够支持后续分析的数据。
-* **Query Correctness**：query-only 任务的查询结果是否正确。
+* **Query Correctness**：查询结果是否能支持 expected answer。
+* **Query Result Precision**：查询输出是否避免不必要行或列。
 * **Analysis Correctness**：分析计算或图表数据是否正确。
-* **QA Pass Rate**：QA 是否认为流程内部一致。
 * **Result Completeness**：最终回答是否覆盖必要事实。
 * **Robust Final Accuracy**：噪声输入下的端到端准确率。
 * **Robust Drop**：clean accuracy 与 noisy accuracy 的差距。
-* **Average Latency / Round Count / Tool Calls**：协作成本。
+* **Average Latency / LLM Call Count**：协作成本。
 
 示例 summary：
 
@@ -152,16 +160,21 @@ MultiAgentCase(
 {
   "total": 6,
   "final_accuracy": 1.0,
-  "tool_routing_accuracy": 1.0,
+  "route_exact_match_accuracy": 1.0,
+  "route_coverage_accuracy": 1.0,
+  "avg_unnecessary_step_count": 0.0,
   "metric_grounding_accuracy": 1.0,
   "data_discovery_accuracy": 1.0,
+  "data_discovery_column_precision": 1.0,
   "query_sufficiency": 1.0,
   "query_correctness": 1.0,
+  "query_result_precision": 1.0,
   "analysis_correctness": 1.0,
-  "qa_pass_rate": 1.0,
   "result_completeness": 1.0,
   "robust_final_accuracy": 0.6667,
-  "robust_drop": 0.3333
+  "robust_drop": 0.3333,
+  "avg_latency_sec": 0.0001,
+  "avg_llm_call_count": 0.0
 }
 ```
 
@@ -193,11 +206,12 @@ python multi_agent_benchmark.py --agent-mode llm --limit 2 --skip-robust
 * LLM Metric Agent
 * LLM Data Discovery Agent
 * LLM Query Agent
+* LLM QA Agent
+* LLM Insight Agent
 * deterministic Analysis executor
-* rule-based QA Agent
-* rule-based Insight Agent
 
 Analysis executor 默认是确定性工具，避免让模型凭记忆做统计计算。
+QA 会先跑确定性 guardrail，再交给 LLM 做语义审查，因此明显的流程错误仍然能稳定捕捉。Insight 在 LLM 模式下由模型生成简洁的业务化回答，并保留确定性 fallback。
 
 ---
 

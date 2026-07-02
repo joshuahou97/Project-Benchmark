@@ -1,6 +1,7 @@
 import argparse
 import json
 import random
+import re
 import sqlite3
 import string
 import sys
@@ -15,7 +16,9 @@ from multi_agent_agents import (
     InsightAgent,
     LLMClient,
     LLMDataDiscoveryAgent,
+    LLMInsightAgent,
     LLMMetricAgent,
+    LLMQAAgent,
     LLMQueryAgent,
     LLMTaskManagerAgent,
     MetricAgent,
@@ -23,7 +26,7 @@ from multi_agent_agents import (
     QueryAgent,
     TaskManagerAgent,
 )
-from multi_agent_dataset import DB_PATH, init_enterprise_db
+from multi_agent_dataset import DATA_DISCOVERY_CATALOG, DB_PATH, init_enterprise_db
 from test_cases_multi_agent import MULTI_AGENT_TEST_CASES, MultiAgentCase
 
 
@@ -53,9 +56,29 @@ def rows_equal(a: Sequence[Tuple[Any, ...]], b: Sequence[Tuple[Any, ...]]) -> bo
     return Counter(normalize_rows(a)) == Counter(normalize_rows(b))
 
 
+COLUMN_ALIASES = {
+    "account_manager": "manager_name",
+    "account_owner": "manager_name",
+    "manager": "manager_name",
+    "customer_segment": "segment",
+    "market_segment": "segment",
+    "closed_revenue": "amount",
+    "booked_revenue": "amount",
+    "total_revenue": "amount",
+    "churned_revenue": "amount",
+    "high_value_active_revenue": "revenue",
+    "churned_customer_revenue": "revenue",
+}
+
+
+def canonical_column_name(value: str) -> str:
+    name = value.lower().split(".")[-1]
+    return COLUMN_ALIASES.get(name, name)
+
+
 def column_matches(expected: str, actual: str) -> bool:
-    expected_norm = expected.lower()
-    actual_norm = actual.lower()
+    expected_norm = canonical_column_name(expected)
+    actual_norm = canonical_column_name(actual)
     if expected_norm == actual_norm:
         return True
     revenue_aliases = {"amount", "revenue", "total_revenue", "closed_revenue", "booked_revenue", "churned_revenue"}
@@ -84,6 +107,31 @@ def find_column_indices(expected: Sequence[str], actual: Sequence[str]) -> Tuple
 
 def project_rows(rows: Sequence[Tuple[Any, ...]], indices: Sequence[int]) -> list[Tuple[Any, ...]]:
     return [tuple(row[idx] for idx in indices) for row in rows]
+
+
+def query_result_precision(case: MultiAgentCase, rows: Sequence[Tuple[Any, ...]], columns: Sequence[str]) -> float:
+    expected_cols = case.expected_result_columns or required_query_output_columns(case)
+    if not expected_cols:
+        return 1.0
+    expected_col_count = len(expected_cols)
+    actual_col_count = max(len(columns), 1)
+    column_score = min(1.0, expected_col_count / actual_col_count)
+    if case.query_contract == "aggregate_allowed":
+        return column_score
+
+    expected_rows = case.expected.get("rows")
+    if expected_rows is not None:
+        expected_row_count = max(len(expected_rows), 1)
+    elif case.expected.get("analysis") in {"group_sum_max", "group_sum_chart"}:
+        all_values = case.expected.get("all_values")
+        expected_row_count = len(all_values) if all_values else len(case.expected.get("rows", [])) or max(len(rows), 1)
+    else:
+        expected_row_count = max(len(rows), 1)
+
+    actual_row_count = max(len(rows), 1)
+    expected_cells = expected_row_count * expected_col_count
+    actual_cells = actual_row_count * actual_col_count
+    return min(1.0, expected_cells / actual_cells)
 
 
 def add_noise(question: str) -> str:
@@ -126,14 +174,16 @@ class MultiAgentSystem:
             self.metric_agent = LLMMetricAgent(self.llm_client)
             self.discovery_agent = LLMDataDiscoveryAgent(self.llm_client)
             self.query_agent = LLMQueryAgent(self.llm_client)
+            self.qa_agent = LLMQAAgent(self.llm_client)
+            self.insight_agent = LLMInsightAgent(self.llm_client)
         else:
             self.task_manager = TaskManagerAgent()
             self.metric_agent = MetricAgent()
             self.discovery_agent = DataDiscoveryAgent()
             self.query_agent = QueryAgent()
+            self.qa_agent = QAAgent()
+            self.insight_agent = InsightAgent()
         self.analysis_agent = AnalysisAgent()
-        self.qa_agent = QAAgent()
-        self.insight_agent = InsightAgent()
 
     def run(self, question: str) -> Dict[str, Any]:
         llm_start = len(self.llm_client.calls) if self.llm_client else 0
@@ -172,7 +222,15 @@ class MultiAgentSystem:
                 analysis_result = {"analysis": "error", "error": analysis_error}
             trace.append(AgentMessage("analysis_agent", analysis_result))
 
-        qa_result = self.qa_agent.check(plan, query_rows, analysis_result)
+        qa_result = self.qa_agent.check(
+            plan,
+            metric_context,
+            data_context,
+            query,
+            query_columns,
+            query_rows,
+            analysis_result,
+        )
         if query_error:
             qa_result["passed"] = False
             qa_result["issues"].append(f"Query execution failed: {query_error}")
@@ -181,7 +239,15 @@ class MultiAgentSystem:
             qa_result["issues"].append(f"Analysis failed: {analysis_error}")
         trace.append(AgentMessage("qa_agent", qa_result))
 
-        final_answer = self.insight_agent.report(plan, query_rows, analysis_result)
+        final_answer = self.insight_agent.report(
+            question,
+            metric_context,
+            plan,
+            query_columns,
+            query_rows,
+            analysis_result,
+            qa_result,
+        )
         trace.append(AgentMessage("insight_agent", {"final_answer": final_answer}))
 
         llm_calls = []
@@ -207,9 +273,29 @@ class MultiAgentSystem:
 
 
 def set_contains(expected: Sequence[str], actual: Sequence[str]) -> bool:
-    actual_names = {x.lower() for x in actual}
-    actual_names.update(x.lower().split(".")[-1] for x in actual)
-    return {x.lower() for x in expected}.issubset(actual_names)
+    actual_names = {canonical_column_name(x) for x in actual}
+    return {canonical_column_name(x) for x in expected}.issubset(actual_names)
+
+
+def column_precision(expected: Sequence[str], actual: Sequence[str]) -> float:
+    if not actual:
+        return 0.0
+    expected_set = {canonical_column_name(item) for item in expected}
+    actual_names = [canonical_column_name(item) for item in actual]
+    matched = sum(1 for item in actual_names if item in expected_set)
+    return matched / len(actual_names)
+
+
+def normalize_contract_expression(value: str) -> str:
+    text = value.lower()
+    text = re.sub(r"\b(customers|orders|support_tickets|account_managers)\.", "", text)
+    text = text.replace("'", "").replace('"', "").replace("`", "")
+    return re.sub(r"\s+", "", text)
+
+
+def contract_contains(expected: Sequence[str], actual: Sequence[str]) -> bool:
+    actual_set = {normalize_contract_expression(item) for item in actual}
+    return {normalize_contract_expression(item) for item in expected}.issubset(actual_set)
 
 
 def columns_contain(expected: Sequence[str], actual: Sequence[str]) -> bool:
@@ -234,7 +320,18 @@ def evaluate_query_rows(case: MultiAgentCase, rows: Sequence[Tuple[Any, ...]], c
     indices = find_column_indices(case.expected_result_columns, columns)
     if indices is None:
         return False
-    return rows_equal(project_rows(rows, indices), expected_rows)
+    projected_rows = project_rows(rows, indices)
+    if rows_equal(projected_rows, expected_rows):
+        return True
+    if (
+        len(case.expected_result_columns) == 1
+        and column_matches(case.expected_result_columns[0], "revenue")
+        and len(expected_rows) == 1
+        and len(expected_rows[0]) == 1
+    ):
+        actual_total = sum(row[0] for row in projected_rows if isinstance(row[0], (int, float)))
+        return rows_equal([(actual_total,)], expected_rows)
+    return False
 
 
 def evaluate_analysis(case: MultiAgentCase, result: Dict[str, Any]) -> bool:
@@ -277,12 +374,23 @@ def evaluate_case(case: MultiAgentCase, system: MultiAgentSystem, noisy: bool = 
     route_covered = route_covers(case.expected_route, run["plan"].route)
     unnecessary_steps = [step for step in run["plan"].route if step not in case.expected_route]
     metric_correct = run["metric_context"].get("metric_id") == case.expected_metric
-    discovery_correct = set_contains(case.expected_tables, run["data_context"].get("tables", [])) and set_contains(
-        case.expected_columns, run["data_context"].get("columns", [])
+    expected_discovery = DATA_DISCOVERY_CATALOG[case.expected_metric]
+    discovery_tables_correct = set_contains(case.expected_tables, run["data_context"].get("tables", []))
+    discovery_columns_correct = set_contains(case.expected_columns, run["data_context"].get("columns", []))
+    discovery_column_precision = column_precision(case.expected_columns, run["data_context"].get("columns", []))
+    discovery_joins_correct = contract_contains(
+        expected_discovery.get("join_keys", []), run["data_context"].get("join_keys", [])
+    )
+    discovery_filters_correct = contract_contains(
+        expected_discovery.get("filters", []), run["data_context"].get("filters", [])
+    )
+    discovery_correct = all(
+        [discovery_tables_correct, discovery_columns_correct, discovery_joins_correct, discovery_filters_correct]
     )
     query_correct = True if case.expected_output_type != "query_rows" else evaluate_query_rows(
         case, run["query_rows"], run["query_columns"]
     )
+    query_precision = query_result_precision(case, run["query_rows"], run["query_columns"])
     required_output_columns = required_query_output_columns(case)
     query_sufficient = query_correct if not required_output_columns else columns_contain(
         required_output_columns, run["query_columns"]
@@ -299,7 +407,6 @@ def evaluate_case(case: MultiAgentCase, system: MultiAgentSystem, noisy: bool = 
             query_sufficient,
             query_correct,
             analysis_correct,
-            run["qa"]["passed"],
         ]
     )
 
@@ -320,6 +427,11 @@ def evaluate_case(case: MultiAgentCase, system: MultiAgentSystem, noisy: bool = 
         "expected_tables": case.expected_tables,
         "expected_columns": case.expected_columns,
         "data_context": run["data_context"],
+        "data_discovery_tables_correct": discovery_tables_correct,
+        "data_discovery_columns_correct": discovery_columns_correct,
+        "data_discovery_column_precision": round(discovery_column_precision, 4),
+        "data_discovery_joins_correct": discovery_joins_correct,
+        "data_discovery_filters_correct": discovery_filters_correct,
         "data_discovery_correct": discovery_correct,
         "expected_query": case.expected_query,
         "executed_query": run["query"],
@@ -328,6 +440,7 @@ def evaluate_case(case: MultiAgentCase, system: MultiAgentSystem, noisy: bool = 
         "query_contract": case.query_contract,
         "query_sufficient": query_sufficient,
         "query_correct": query_correct,
+        "query_result_precision": round(query_precision, 4),
         "analysis_result": run["analysis_result"],
         "analysis_correct": analysis_correct,
         "qa_passed": run["qa"]["passed"],
@@ -355,25 +468,24 @@ def summarize(results: Sequence[Dict[str, Any]], robust_results: Sequence[Dict[s
     return {
         "total": total,
         "final_accuracy": round(clean_accuracy, 4),
-        "tool_routing_accuracy": round(sum(item["route_exact_match"] for item in results) / total, 4),
         "route_exact_match_accuracy": round(sum(item["route_exact_match"] for item in results) / total, 4),
         "route_coverage_accuracy": round(sum(item["route_covered"] for item in results) / total, 4),
         "avg_unnecessary_step_count": round(sum(item["unnecessary_step_count"] for item in results) / total, 4),
         "metric_grounding_accuracy": round(sum(item["metric_correct"] for item in results) / total, 4),
         "data_discovery_accuracy": round(sum(item["data_discovery_correct"] for item in results) / total, 4),
+        "data_discovery_column_precision": round(
+            sum(item["data_discovery_column_precision"] for item in results) / total, 4
+        ),
         "query_sufficiency": round(sum(item["query_sufficient"] for item in results) / total, 4),
         "query_correctness": round(sum(item["query_correct"] for item in results) / total, 4),
+        "query_result_precision": round(sum(item["query_result_precision"] for item in results) / total, 4),
         "analysis_correctness": round(sum(item["analysis_correct"] for item in analysis_cases) / len(analysis_cases), 4)
         if analysis_cases
         else 1.0,
-        "qa_pass_rate": round(sum(item["qa_passed"] for item in results) / total, 4),
         "result_completeness": round(sum(item["completeness"] for item in results) / total, 4),
         "robust_final_accuracy": round(robust_accuracy, 4) if robust_accuracy is not None else None,
         "robust_drop": round(clean_accuracy - robust_accuracy, 4) if robust_accuracy is not None else None,
         "avg_latency_sec": round(sum(item["latency_sec"] for item in results) / total, 4),
-        "avg_round_count": round(sum(item["round_count"] for item in results) / total, 4),
-        "avg_query_count": round(sum(item["query_count"] for item in results) / total, 4),
-        "avg_analysis_execution_count": round(sum(item["analysis_execution_count"] for item in results) / total, 4),
         "avg_llm_call_count": round(sum(item["llm_call_count"] for item in results) / total, 4),
     }
 

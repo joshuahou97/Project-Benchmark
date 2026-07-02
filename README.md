@@ -95,7 +95,10 @@ MVP agent roles:
 * **Data Discovery Agent**: identifies the table, columns, grain, and data contract required by the metric.
 * **Query Agent**: generates a query that satisfies the data contract.
 * **Analysis Agent**: computes statistical or chart-ready results from query rows.
-* **QA & Insight Agent**: checks workflow consistency and produces a grounded answer.
+* **QA Agent**: checks workflow consistency, data-contract coverage, query output sufficiency, and analysis shape.
+* **Insight Agent**: turns query or analysis results into a grounded business answer.
+
+Metric Agent and Data Discovery Agent are intentionally separate. Metric Agent answers what the business metric means; Data Discovery Agent answers where the required data lives and how it should be retrieved, including joins, filters, grain, and downstream query contract.
 
 Workflow:
 
@@ -118,7 +121,10 @@ Natural Language Task
    Analysis Agent
         │
         ▼
- QA & Insight Agent
+      QA Agent
+        │
+        ▼
+   Insight Agent
         │
         ▼
  External Evaluator
@@ -151,17 +157,20 @@ MultiAgentCase(
 The multi-agent benchmark reports:
 
 * **Final Accuracy**: whether the end-to-end workflow result is correct.
-* **Tool Routing Accuracy**: whether Task Manager selected the expected route.
+* **Route Exact Match Accuracy**: whether Task Manager selected the expected workflow exactly.
+* **Route Coverage Accuracy**: whether the planned workflow covers all required agents.
+* **Average Unnecessary Step Count**: how many extra agent steps were used per case.
 * **Metric Grounding Accuracy**: whether Metric Agent selected the expected business metric.
-* **Data Discovery Accuracy**: whether Data Discovery Agent selected the expected table and columns.
+* **Data Discovery Accuracy**: whether Data Discovery Agent covered the required tables, columns, joins, and filters.
+* **Data Discovery Column Precision**: whether the discovered column contract avoids unnecessary fields.
 * **Query Sufficiency**: whether Query Agent retrieved enough data for downstream analysis.
-* **Query Correctness**: whether direct query tasks return the expected rows.
+* **Query Correctness**: whether query results can support the expected answer.
+* **Query Result Precision**: whether query output avoids unnecessary rows or columns.
 * **Analysis Correctness**: whether statistical or chart-data analysis is correct.
-* **QA Pass Rate**: whether QA finds the run internally consistent.
 * **Result Completeness**: whether required facts appear in the final answer.
 * **Robust Final Accuracy**: final accuracy on noisy versions of the same questions.
 * **Robust Drop**: clean final accuracy minus noisy final accuracy.
-* **Average Latency / Round Count / Tool Calls**: collaboration efficiency.
+* **Average Latency / LLM Call Count**: collaboration cost.
 
 Example summary:
 
@@ -169,16 +178,21 @@ Example summary:
 {
   "total": 6,
   "final_accuracy": 1.0,
-  "tool_routing_accuracy": 1.0,
+  "route_exact_match_accuracy": 1.0,
+  "route_coverage_accuracy": 1.0,
+  "avg_unnecessary_step_count": 0.0,
   "metric_grounding_accuracy": 1.0,
   "data_discovery_accuracy": 1.0,
+  "data_discovery_column_precision": 1.0,
   "query_sufficiency": 1.0,
   "query_correctness": 1.0,
+  "query_result_precision": 1.0,
   "analysis_correctness": 1.0,
-  "qa_pass_rate": 1.0,
   "result_completeness": 1.0,
   "robust_final_accuracy": 0.6667,
-  "robust_drop": 0.3333
+  "robust_drop": 0.3333,
+  "avg_latency_sec": 0.0001,
+  "avg_llm_call_count": 0.0
 }
 ```
 
@@ -214,11 +228,12 @@ By default, LLM mode uses:
 * LLM Metric Agent
 * LLM Data Discovery Agent
 * LLM Query Agent
+* LLM QA Agent
+* LLM Insight Agent
 * deterministic Analysis executor
-* rule-based QA Agent
-* rule-based Insight Agent
 
 The deterministic Analysis executor keeps statistical computation tool-grounded instead of relying on model memory.
+QA keeps a deterministic guardrail before the LLM audit, so obvious workflow failures are caught reliably. Insight uses the LLM in LLM mode to write concise grounded business answers, with a deterministic fallback.
 
 Default outputs:
 
