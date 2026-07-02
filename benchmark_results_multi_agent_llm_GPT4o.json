@@ -1,0 +1,4789 @@
+{
+  "agent_mode": "llm",
+  "summary": {
+    "total": 6,
+    "final_accuracy": 1.0,
+    "route_exact_match_accuracy": 0.5,
+    "route_coverage_accuracy": 1.0,
+    "avg_unnecessary_step_count": 0.5,
+    "metric_grounding_accuracy": 1.0,
+    "data_discovery_accuracy": 1.0,
+    "data_discovery_column_precision": 0.7738,
+    "query_sufficiency": 1.0,
+    "query_correctness": 1.0,
+    "query_result_precision": 0.7579,
+    "analysis_correctness": 1.0,
+    "result_completeness": 0.8333,
+    "robust_final_accuracy": 1.0,
+    "robust_drop": 0.0,
+    "avg_latency_sec": 13.4801,
+    "avg_llm_call_count": 5.6667
+  },
+  "results": [
+    {
+      "id": "high_value_active_revenue",
+      "question": "How much closed revenue came from high-value active customers? Exclude internal accounts.",
+      "run_question": "How much closed revenue came from high-value active customers? Exclude internal accounts.",
+      "expected_route": [
+        "metric",
+        "discovery",
+        "query"
+      ],
+      "planned_route": [
+        "metric",
+        "discovery",
+        "query",
+        "analysis"
+      ],
+      "route_correct": false,
+      "route_exact_match": false,
+      "route_covered": true,
+      "unnecessary_steps": [
+        "analysis"
+      ],
+      "unnecessary_step_count": 1,
+      "expected_metric": "high_value_active_revenue",
+      "metric_context": {
+        "metric_id": "high_value_active_revenue",
+        "definition": "Total closed order revenue for active, non-internal customers whose annual contract value is at least 20000.",
+        "business_rules": [
+          "Exclude internal test accounts.",
+          "Only include customers with status = active.",
+          "High-value means annual_contract_value >= 20000.",
+          "Revenue is the sum of closed order amounts."
+        ]
+      },
+      "metric_correct": true,
+      "expected_tables": [
+        "customers",
+        "orders"
+      ],
+      "expected_columns": [
+        "amount"
+      ],
+      "data_context": {
+        "tables": [
+          "customers",
+          "orders"
+        ],
+        "columns": [
+          "customers.customer_id",
+          "customers.customer_name",
+          "customers.segment",
+          "customers.region",
+          "customers.status",
+          "customers.annual_contract_value",
+          "orders.amount"
+        ],
+        "join_keys": [
+          "customers.customer_id = orders.customer_id"
+        ],
+        "filters": [
+          "customers.is_internal = 0",
+          "customers.status = 'active'",
+          "customers.annual_contract_value >= 20000",
+          "orders.order_status = 'closed'"
+        ],
+        "grain": "customer_id",
+        "data_contract": {
+          "tables": [
+            "customers",
+            "orders"
+          ],
+          "columns": [
+            "customers.customer_id",
+            "customers.customer_name",
+            "customers.segment",
+            "customers.region",
+            "customers.status",
+            "customers.annual_contract_value",
+            "orders.amount"
+          ],
+          "join_keys": [
+            "customers.customer_id = orders.customer_id"
+          ],
+          "filters": [
+            "customers.is_internal = 0",
+            "customers.status = 'active'",
+            "customers.annual_contract_value >= 20000",
+            "orders.order_status = 'closed'"
+          ],
+          "grain": "customer_id"
+        }
+      },
+      "data_discovery_tables_correct": true,
+      "data_discovery_columns_correct": true,
+      "data_discovery_column_precision": 0.1429,
+      "data_discovery_joins_correct": true,
+      "data_discovery_filters_correct": true,
+      "data_discovery_correct": true,
+      "expected_query": "\n        SELECT SUM(o.amount) AS revenue\n        FROM customers c\n        JOIN orders o ON c.customer_id = o.customer_id\n        WHERE c.status='active'\n          AND c.is_internal=0\n          AND c.annual_contract_value >= 20000\n          AND o.order_status='closed';\n        ",
+      "executed_query": "SELECT \n    customers.customer_id,\n    customers.customer_name,\n    customers.segment,\n    customers.region,\n    customers.status,\n    customers.annual_contract_value,\n    SUM(orders.amount) AS closed_revenue\nFROM \n    customers\nJOIN \n    orders ON customers.customer_id = orders.customer_id\nWHERE \n    customers.is_internal = 0 \n    AND customers.status = 'active' \n    AND customers.annual_contract_value >= 20000 \n    AND orders.order_status = 'closed'\nGROUP BY \n    customers.customer_id, \n    customers.customer_name, \n    customers.segment, \n    customers.region, \n    customers.status, \n    customers.annual_contract_value;",
+      "query_columns": [
+        "customer_id",
+        "customer_name",
+        "segment",
+        "region",
+        "status",
+        "annual_contract_value",
+        "closed_revenue"
+      ],
+      "query_rows": [
+        [
+          1,
+          "Acme Manufacturing",
+          "Enterprise",
+          "North America",
+          "active",
+          62000,
+          62000
+        ],
+        [
+          3,
+          "Cobalt Finance",
+          "Enterprise",
+          "Europe",
+          "active",
+          54000,
+          54000
+        ],
+        [
+          6,
+          "Futura Logistics",
+          "Mid-Market",
+          "APAC",
+          "active",
+          23000,
+          23000
+        ]
+      ],
+      "query_contract": "exact_result",
+      "query_sufficient": true,
+      "query_correct": true,
+      "query_result_precision": 0.0476,
+      "analysis_result": {
+        "analysis": "passthrough",
+        "rows": [
+          [
+            1,
+            "Acme Manufacturing",
+            "Enterprise",
+            "North America",
+            "active",
+            62000,
+            62000
+          ],
+          [
+            3,
+            "Cobalt Finance",
+            "Enterprise",
+            "Europe",
+            "active",
+            54000,
+            54000
+          ],
+          [
+            6,
+            "Futura Logistics",
+            "Mid-Market",
+            "APAC",
+            "active",
+            23000,
+            23000
+          ]
+        ]
+      },
+      "analysis_correct": true,
+      "qa_passed": true,
+      "qa_issues": [],
+      "final_answer": "The total closed revenue from high-value active customers, excluding internal accounts, is 139000. \n\nChart-ready data:\n- Total Closed Revenue: 139000\n- Number of Customers: 3",
+      "final_correct": true,
+      "completeness": 1.0,
+      "latency_sec": 16.5901,
+      "round_count": 8,
+      "query_count": 1,
+      "analysis_execution_count": 1,
+      "llm_call_count": 6,
+      "llm_calls": [
+        {
+          "agent": "task_manager",
+          "output": "{\n  \"route\": [\"metric\", \"discovery\", \"query\", \"analysis\"],\n  \"rationale\": \"The question requires a computation of closed revenue specifically from high-value active customers, which involves identifying and ranking these customers, as well as potentially preparing the data for chart-ready output.\"\n}",
+          "token_usage": {
+            "input_tokens": 115,
+            "output_tokens": 60,
+            "total_tokens": 175,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        },
+        {
+          "agent": "metric_agent",
+          "output": "{\"metric_id\": \"high_value_active_revenue\"}",
+          "token_usage": {
+            "input_tokens": 478,
+            "output_tokens": 11,
+            "total_tokens": 489,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        },
+        {
+          "agent": "data_discovery_agent",
+          "output": "{\n  \"tables\": [\n    \"customers\",\n    \"orders\"\n  ],\n  \"columns\": [\n    \"customers.customer_id\",\n    \"customers.customer_name\",\n    \"customers.segment\",\n    \"customers.region\",\n    \"customers.status\",\n    \"customers.annual_contract_value\",\n    \"orders.amount\"\n  ],\n  \"join_keys\": [\n    \"customers.customer_id = orders.customer_id\"\n  ],\n  \"filters\": [\n    \"customers.is_internal = 0\",\n    \"customers.status = 'active'\",\n    \"customers.annual_contract_value >= 20000\",\n    \"orders.order_status = 'closed'\"\n  ],\n  \"grain\": \"customer_id\",\n  \"data_contract\": {\n    \"tables\": [\n      \"customers\",\n      \"orders\"\n    ],\n    \"columns\": [\n      \"customers.customer_id\",\n      \"customers.customer_name\",\n      \"customers.segment\",\n      \"customers.region\",\n      \"customers.status\",\n      \"customers.annual_contract_value\",\n      \"orders.amount\"\n    ],\n    \"join_keys\": [\n      \"customers.customer_id = orders.customer_id\"\n    ],\n    \"filters\": [\n      \"customers.is_internal = 0\",\n      \"customers.status = 'active'\",\n      \"customers.annual_contract_value >= 20000\",\n      \"orders.order_status = 'closed'\"\n    ],\n    \"grain\": \"customer_id\"\n  }\n}",
+          "token_usage": {
+            "input_tokens": 378,
+            "output_tokens": 276,
+            "total_tokens": 654,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        },
+        {
+          "agent": "query_agent",
+          "output": "```sql\nSELECT \n    customers.customer_id,\n    customers.customer_name,\n    customers.segment,\n    customers.region,\n    customers.status,\n    customers.annual_contract_value,\n    SUM(orders.amount) AS closed_revenue\nFROM \n    customers\nJOIN \n    orders ON customers.customer_id = orders.customer_id\nWHERE \n    customers.is_internal = 0 \n    AND customers.status = 'active' \n    AND customers.annual_contract_value >= 20000 \n    AND orders.order_status = 'closed'\nGROUP BY \n    customers.customer_id, \n    customers.customer_name, \n    customers.segment, \n    customers.region, \n    customers.status, \n    customers.annual_contract_value;\n```",
+          "token_usage": {
+            "input_tokens": 511,
+            "output_tokens": 141,
+            "total_tokens": 652,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        },
+        {
+          "agent": "qa_agent",
+          "output": "{\n  \"passed\": true,\n  \"issues\": []\n}",
+          "token_usage": {
+            "input_tokens": 789,
+            "output_tokens": 13,
+            "total_tokens": 802,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        },
+        {
+          "agent": "insight_agent",
+          "output": "The total closed revenue from high-value active customers, excluding internal accounts, is 139000. \n\nChart-ready data:\n- Total Closed Revenue: 139000\n- Number of Customers: 3",
+          "token_usage": {
+            "input_tokens": 407,
+            "output_tokens": 40,
+            "total_tokens": 447,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        }
+      ],
+      "trace": [
+        {
+          "agent": "task_manager",
+          "content": {
+            "route": [
+              "metric",
+              "discovery",
+              "query",
+              "analysis"
+            ],
+            "rationale": "The question requires a computation of closed revenue specifically from high-value active customers, which involves identifying and ranking these customers, as well as potentially preparing the data for chart-ready output."
+          }
+        },
+        {
+          "agent": "metric_agent",
+          "content": {
+            "metric_id": "high_value_active_revenue",
+            "definition": "Total closed order revenue for active, non-internal customers whose annual contract value is at least 20000.",
+            "business_rules": [
+              "Exclude internal test accounts.",
+              "Only include customers with status = active.",
+              "High-value means annual_contract_value >= 20000.",
+              "Revenue is the sum of closed order amounts."
+            ]
+          }
+        },
+        {
+          "agent": "data_discovery_agent",
+          "content": {
+            "tables": [
+              "customers",
+              "orders"
+            ],
+            "columns": [
+              "customers.customer_id",
+              "customers.customer_name",
+              "customers.segment",
+              "customers.region",
+              "customers.status",
+              "customers.annual_contract_value",
+              "orders.amount"
+            ],
+            "join_keys": [
+              "customers.customer_id = orders.customer_id"
+            ],
+            "filters": [
+              "customers.is_internal = 0",
+              "customers.status = 'active'",
+              "customers.annual_contract_value >= 20000",
+              "orders.order_status = 'closed'"
+            ],
+            "grain": "customer_id",
+            "data_contract": {
+              "tables": [
+                "customers",
+                "orders"
+              ],
+              "columns": [
+                "customers.customer_id",
+                "customers.customer_name",
+                "customers.segment",
+                "customers.region",
+                "customers.status",
+                "customers.annual_contract_value",
+                "orders.amount"
+              ],
+              "join_keys": [
+                "customers.customer_id = orders.customer_id"
+              ],
+              "filters": [
+                "customers.is_internal = 0",
+                "customers.status = 'active'",
+                "customers.annual_contract_value >= 20000",
+                "orders.order_status = 'closed'"
+              ],
+              "grain": "customer_id"
+            }
+          }
+        },
+        {
+          "agent": "query_agent",
+          "content": {
+            "query": "SELECT \n    customers.customer_id,\n    customers.customer_name,\n    customers.segment,\n    customers.region,\n    customers.status,\n    customers.annual_contract_value,\n    SUM(orders.amount) AS closed_revenue\nFROM \n    customers\nJOIN \n    orders ON customers.customer_id = orders.customer_id\nWHERE \n    customers.is_internal = 0 \n    AND customers.status = 'active' \n    AND customers.annual_contract_value >= 20000 \n    AND orders.order_status = 'closed'\nGROUP BY \n    customers.customer_id, \n    customers.customer_name, \n    customers.segment, \n    customers.region, \n    customers.status, \n    customers.annual_contract_value;"
+          }
+        },
+        {
+          "agent": "query_executor",
+          "content": {
+            "columns": [
+              "customer_id",
+              "customer_name",
+              "segment",
+              "region",
+              "status",
+              "annual_contract_value",
+              "closed_revenue"
+            ],
+            "rows": [
+              [
+                1,
+                "Acme Manufacturing",
+                "Enterprise",
+                "North America",
+                "active",
+                62000,
+                62000
+              ],
+              [
+                3,
+                "Cobalt Finance",
+                "Enterprise",
+                "Europe",
+                "active",
+                54000,
+                54000
+              ],
+              [
+                6,
+                "Futura Logistics",
+                "Mid-Market",
+                "APAC",
+                "active",
+                23000,
+                23000
+              ]
+            ],
+            "error": null
+          }
+        },
+        {
+          "agent": "analysis_agent",
+          "content": {
+            "analysis": "passthrough",
+            "rows": [
+              [
+                1,
+                "Acme Manufacturing",
+                "Enterprise",
+                "North America",
+                "active",
+                62000,
+                62000
+              ],
+              [
+                3,
+                "Cobalt Finance",
+                "Enterprise",
+                "Europe",
+                "active",
+                54000,
+                54000
+              ],
+              [
+                6,
+                "Futura Logistics",
+                "Mid-Market",
+                "APAC",
+                "active",
+                23000,
+                23000
+              ]
+            ]
+          }
+        },
+        {
+          "agent": "qa_agent",
+          "content": {
+            "passed": true,
+            "issues": []
+          }
+        },
+        {
+          "agent": "insight_agent",
+          "content": {
+            "final_answer": "The total closed revenue from high-value active customers, excluding internal accounts, is 139000. \n\nChart-ready data:\n- Total Closed Revenue: 139000\n- Number of Customers: 3"
+          }
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "id": "at_risk_open_support",
+      "question": "Which at-risk customers currently have open high-severity support exposure?",
+      "run_question": "Which at-risk customers currently have open high-severity support exposure?",
+      "expected_route": [
+        "metric",
+        "discovery",
+        "query"
+      ],
+      "planned_route": [
+        "metric",
+        "discovery",
+        "query",
+        "analysis"
+      ],
+      "route_correct": false,
+      "route_exact_match": false,
+      "route_covered": true,
+      "unnecessary_steps": [
+        "analysis"
+      ],
+      "unnecessary_step_count": 1,
+      "expected_metric": "at_risk_open_support",
+      "metric_context": {
+        "metric_id": "at_risk_open_support",
+        "definition": "Open high or critical support exposure for non-internal customers marked at risk.",
+        "business_rules": [
+          "Exclude internal test accounts.",
+          "Only include customers with status = at_risk.",
+          "Only include support tickets with status = open and severity in high or critical."
+        ]
+      },
+      "metric_correct": true,
+      "expected_tables": [
+        "customers",
+        "support_tickets"
+      ],
+      "expected_columns": [
+        "customer_name",
+        "severity",
+        "resolution_hours"
+      ],
+      "data_context": {
+        "tables": [
+          "customers",
+          "support_tickets"
+        ],
+        "columns": [
+          "customer_name",
+          "severity",
+          "resolution_hours"
+        ],
+        "join_keys": [
+          "customers.customer_id = support_tickets.customer_id"
+        ],
+        "filters": [
+          "customers.status = 'at_risk'",
+          "customers.is_internal = 0",
+          "support_tickets.ticket_status = 'open'",
+          "support_tickets.severity IN ('high', 'critical')"
+        ],
+        "grain": "one row per open high-severity support ticket",
+        "data_contract": {
+          "tables": [
+            "customers",
+            "support_tickets"
+          ],
+          "columns": [
+            "customer_name",
+            "severity",
+            "resolution_hours"
+          ],
+          "join_keys": [
+            "customers.customer_id = support_tickets.customer_id"
+          ],
+          "filters": [
+            "customers.status = 'at_risk'",
+            "customers.is_internal = 0",
+            "support_tickets.ticket_status = 'open'",
+            "support_tickets.severity IN ('high', 'critical')"
+          ],
+          "grain": "one row per open high-severity support ticket"
+        }
+      },
+      "data_discovery_tables_correct": true,
+      "data_discovery_columns_correct": true,
+      "data_discovery_column_precision": 1.0,
+      "data_discovery_joins_correct": true,
+      "data_discovery_filters_correct": true,
+      "data_discovery_correct": true,
+      "expected_query": "\n        SELECT c.customer_name, t.severity, t.resolution_hours\n        FROM customers c\n        JOIN support_tickets t ON c.customer_id = t.customer_id\n        WHERE c.status='at_risk'\n          AND c.is_internal=0\n          AND t.ticket_status='open'\n          AND t.severity IN ('high', 'critical')\n        ORDER BY t.resolution_hours DESC;\n        ",
+      "executed_query": "SELECT \n    customers.customer_name AS customer_name,\n    support_tickets.severity AS severity,\n    support_tickets.resolution_hours AS resolution_hours\nFROM \n    customers\nJOIN \n    support_tickets ON customers.customer_id = support_tickets.customer_id\nWHERE \n    customers.status = 'at_risk' \n    AND customers.is_internal = 0 \n    AND support_tickets.ticket_status = 'open' \n    AND support_tickets.severity IN ('high', 'critical');",
+      "query_columns": [
+        "customer_name",
+        "severity",
+        "resolution_hours"
+      ],
+      "query_rows": [
+        [
+          "Delta Health",
+          "critical",
+          72
+        ],
+        [
+          "Delta Health",
+          "high",
+          54
+        ]
+      ],
+      "query_contract": "exact_result",
+      "query_sufficient": true,
+      "query_correct": true,
+      "query_result_precision": 1.0,
+      "analysis_result": {
+        "analysis": "passthrough",
+        "rows": [
+          [
+            "Delta Health",
+            "critical",
+            72
+          ],
+          [
+            "Delta Health",
+            "high",
+            54
+          ]
+        ]
+      },
+      "analysis_correct": true,
+      "qa_passed": false,
+      "qa_issues": [
+        {
+          "issue": "Data Contract Mismatch",
+          "description": "The data contract specifies that the grain should be 'one row per open high-severity support ticket', but the query output includes multiple rows for the same customer with different severities. This suggests that the grain is not being respected."
+        }
+      ],
+      "final_answer": "Unable to produce a trusted answer. QA issues: [{'issue': 'Data Contract Mismatch', 'description': \"The data contract specifies that the grain should be 'one row per open high-severity support ticket', but the query output includes multiple rows for the same customer with different severities. This suggests that the grain is not being respected.\"}]",
+      "final_correct": true,
+      "completeness": 0.0,
+      "latency_sec": 10.4851,
+      "round_count": 8,
+      "query_count": 1,
+      "analysis_execution_count": 1,
+      "llm_call_count": 5,
+      "llm_calls": [
+        {
+          "agent": "task_manager",
+          "output": "{\n  \"route\": [\"metric\", \"discovery\", \"query\", \"analysis\"],\n  \"rationale\": \"The question requires identifying at-risk customers with specific support exposure, which involves ranking and potentially computing metrics related to severity. This necessitates an analysis step to prepare the data for chart-ready output.\"\n}",
+          "token_usage": {
+            "input_tokens": 112,
+            "output_tokens": 63,
+            "total_tokens": 175,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        },
+        {
+          "agent": "metric_agent",
+          "output": "{\"metric_id\": \"at_risk_open_support\"}",
+          "token_usage": {
+            "input_tokens": 475,
+            "output_tokens": 11,
+            "total_tokens": 486,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        },
+        {
+          "agent": "data_discovery_agent",
+          "output": "{\n  \"tables\": [\n    \"customers\",\n    \"support_tickets\"\n  ],\n  \"columns\": [\n    \"customers.customer_id\",\n    \"customers.customer_name\",\n    \"customers.status\",\n    \"support_tickets.ticket_id\",\n    \"support_tickets.severity\",\n    \"support_tickets.ticket_status\"\n  ],\n  \"join_keys\": [\n    \"customers.customer_id = support_tickets.customer_id\"\n  ],\n  \"filters\": [\n    \"customers.is_internal = 0\",\n    \"customers.status = 'at_risk'\",\n    \"support_tickets.ticket_status = 'open'\",\n    \"support_tickets.severity IN ('high', 'critical')\"\n  ],\n  \"grain\": \"support_tickets.ticket_id\",\n  \"data_contract\": {\n    \"tables\": [\n      \"customers\",\n      \"support_tickets\"\n    ],\n    \"columns\": [\n      \"customers.customer_id\",\n      \"customers.customer_name\",\n      \"customers.status\",\n      \"support_tickets.ticket_id\",\n      \"support_tickets.severity\",\n      \"support_tickets.ticket_status\"\n    ],\n    \"join_keys\": [\n      \"customers.customer_id = support_tickets.customer_id\"\n    ],\n    \"filters\": [\n      \"customers.is_internal = 0\",\n      \"customers.status = 'at_risk'\",\n      \"support_tickets.ticket_status = 'open'\",\n      \"support_tickets.severity IN ('high', 'critical')\"\n    ],\n    \"grain\": \"support_tickets.ticket_id\"\n  }\n}",
+          "token_usage": {
+            "input_tokens": 367,
+            "output_tokens": 306,
+            "total_tokens": 673,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        },
+        {
+          "agent": "query_agent",
+          "output": "```sql\nSELECT \n    customers.customer_name AS customer_name,\n    support_tickets.severity AS severity,\n    support_tickets.resolution_hours AS resolution_hours\nFROM \n    customers\nJOIN \n    support_tickets ON customers.customer_id = support_tickets.customer_id\nWHERE \n    customers.status = 'at_risk' \n    AND customers.is_internal = 0 \n    AND support_tickets.ticket_status = 'open' \n    AND support_tickets.severity IN ('high', 'critical');\n```",
+          "token_usage": {
+            "input_tokens": 490,
+            "output_tokens": 103,
+            "total_tokens": 593,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        },
+        {
+          "agent": "qa_agent",
+          "output": "{\n  \"passed\": false,\n  \"issues\": [\n    {\n      \"issue\": \"Data Contract Mismatch\",\n      \"description\": \"The data contract specifies that the grain should be 'one row per open high-severity support ticket', but the query output includes multiple rows for the same customer with different severities. This suggests that the grain is not being respected.\"\n    }\n  ]\n}",
+          "token_usage": {
+            "input_tokens": 600,
+            "output_tokens": 80,
+            "total_tokens": 680,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        }
+      ],
+      "trace": [
+        {
+          "agent": "task_manager",
+          "content": {
+            "route": [
+              "metric",
+              "discovery",
+              "query",
+              "analysis"
+            ],
+            "rationale": "The question requires identifying at-risk customers with specific support exposure, which involves ranking and potentially computing metrics related to severity. This necessitates an analysis step to prepare the data for chart-ready output."
+          }
+        },
+        {
+          "agent": "metric_agent",
+          "content": {
+            "metric_id": "at_risk_open_support",
+            "definition": "Open high or critical support exposure for non-internal customers marked at risk.",
+            "business_rules": [
+              "Exclude internal test accounts.",
+              "Only include customers with status = at_risk.",
+              "Only include support tickets with status = open and severity in high or critical."
+            ]
+          }
+        },
+        {
+          "agent": "data_discovery_agent",
+          "content": {
+            "tables": [
+              "customers",
+              "support_tickets"
+            ],
+            "columns": [
+              "customer_name",
+              "severity",
+              "resolution_hours"
+            ],
+            "join_keys": [
+              "customers.customer_id = support_tickets.customer_id"
+            ],
+            "filters": [
+              "customers.status = 'at_risk'",
+              "customers.is_internal = 0",
+              "support_tickets.ticket_status = 'open'",
+              "support_tickets.severity IN ('high', 'critical')"
+            ],
+            "grain": "one row per open high-severity support ticket",
+            "data_contract": {
+              "tables": [
+                "customers",
+                "support_tickets"
+              ],
+              "columns": [
+                "customer_name",
+                "severity",
+                "resolution_hours"
+              ],
+              "join_keys": [
+                "customers.customer_id = support_tickets.customer_id"
+              ],
+              "filters": [
+                "customers.status = 'at_risk'",
+                "customers.is_internal = 0",
+                "support_tickets.ticket_status = 'open'",
+                "support_tickets.severity IN ('high', 'critical')"
+              ],
+              "grain": "one row per open high-severity support ticket"
+            }
+          }
+        },
+        {
+          "agent": "query_agent",
+          "content": {
+            "query": "SELECT \n    customers.customer_name AS customer_name,\n    support_tickets.severity AS severity,\n    support_tickets.resolution_hours AS resolution_hours\nFROM \n    customers\nJOIN \n    support_tickets ON customers.customer_id = support_tickets.customer_id\nWHERE \n    customers.status = 'at_risk' \n    AND customers.is_internal = 0 \n    AND support_tickets.ticket_status = 'open' \n    AND support_tickets.severity IN ('high', 'critical');"
+          }
+        },
+        {
+          "agent": "query_executor",
+          "content": {
+            "columns": [
+              "customer_name",
+              "severity",
+              "resolution_hours"
+            ],
+            "rows": [
+              [
+                "Delta Health",
+                "critical",
+                72
+              ],
+              [
+                "Delta Health",
+                "high",
+                54
+              ]
+            ],
+            "error": null
+          }
+        },
+        {
+          "agent": "analysis_agent",
+          "content": {
+            "analysis": "passthrough",
+            "rows": [
+              [
+                "Delta Health",
+                "critical",
+                72
+              ],
+              [
+                "Delta Health",
+                "high",
+                54
+              ]
+            ]
+          }
+        },
+        {
+          "agent": "qa_agent",
+          "content": {
+            "passed": false,
+            "issues": [
+              {
+                "issue": "Data Contract Mismatch",
+                "description": "The data contract specifies that the grain should be 'one row per open high-severity support ticket', but the query output includes multiple rows for the same customer with different severities. This suggests that the grain is not being respected."
+              }
+            ]
+          }
+        },
+        {
+          "agent": "insight_agent",
+          "content": {
+            "final_answer": "Unable to produce a trusted answer. QA issues: [{'issue': 'Data Contract Mismatch', 'description': \"The data contract specifies that the grain should be 'one row per open high-severity support ticket', but the query output includes multiple rows for the same customer with different severities. This suggests that the grain is not being respected.\"}]"
+          }
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "id": "manager_revenue_concentration",
+      "question": "Show closed revenue by account manager and identify the manager with the highest concentration.",
+      "run_question": "Show closed revenue by account manager and identify the manager with the highest concentration.",
+      "expected_route": [
+        "metric",
+        "discovery",
+        "query",
+        "analysis"
+      ],
+      "planned_route": [
+        "metric",
+        "discovery",
+        "query",
+        "analysis"
+      ],
+      "route_correct": true,
+      "route_exact_match": true,
+      "route_covered": true,
+      "unnecessary_steps": [],
+      "unnecessary_step_count": 0,
+      "expected_metric": "manager_revenue_concentration",
+      "metric_context": {
+        "metric_id": "manager_revenue_concentration",
+        "definition": "Closed revenue by account manager, excluding internal accounts.",
+        "business_rules": [
+          "Exclude internal test accounts.",
+          "Revenue is the sum of closed order amounts.",
+          "Group customers by account manager."
+        ]
+      },
+      "metric_correct": true,
+      "expected_tables": [
+        "customers",
+        "orders",
+        "account_managers"
+      ],
+      "expected_columns": [
+        "manager_name",
+        "amount"
+      ],
+      "data_context": {
+        "tables": [
+          "customers",
+          "orders",
+          "account_managers"
+        ],
+        "columns": [
+          "account_managers.manager_name",
+          "customers.customer_id",
+          "customers.customer_name",
+          "orders.amount"
+        ],
+        "join_keys": [
+          "customers.customer_id = orders.customer_id",
+          "customers.customer_id = account_managers.customer_id"
+        ],
+        "filters": [
+          "customers.is_internal = 0",
+          "orders.order_status = 'closed'"
+        ],
+        "grain": "account_manager",
+        "data_contract": {
+          "tables": [
+            "customers",
+            "orders",
+            "account_managers"
+          ],
+          "columns": [
+            "account_managers.manager_name",
+            "customers.customer_id",
+            "customers.customer_name",
+            "orders.amount"
+          ],
+          "join_keys": [
+            "customers.customer_id = orders.customer_id",
+            "customers.customer_id = account_managers.customer_id"
+          ],
+          "filters": [
+            "customers.is_internal = 0",
+            "orders.order_status = 'closed'"
+          ],
+          "grain": "account_manager"
+        }
+      },
+      "data_discovery_tables_correct": true,
+      "data_discovery_columns_correct": true,
+      "data_discovery_column_precision": 0.5,
+      "data_discovery_joins_correct": true,
+      "data_discovery_filters_correct": true,
+      "data_discovery_correct": true,
+      "expected_query": "\n        SELECT am.manager_name, o.amount\n        FROM customers c\n        JOIN orders o ON c.customer_id = o.customer_id\n        JOIN account_managers am ON c.customer_id = am.customer_id\n        WHERE c.is_internal=0\n          AND o.order_status='closed';\n        ",
+      "executed_query": "SELECT \n    am.manager_name AS account_manager,\n    c.customer_id AS customer_id,\n    c.customer_name AS customer_name,\n    SUM(o.amount) AS closed_revenue\nFROM \n    customers c\nJOIN \n    orders o ON c.customer_id = o.customer_id\nJOIN \n    account_managers am ON c.customer_id = am.customer_id\nWHERE \n    c.is_internal = 0 \n    AND o.order_status = 'closed'\nGROUP BY \n    am.manager_name, c.customer_id, c.customer_name;",
+      "query_columns": [
+        "account_manager",
+        "customer_id",
+        "customer_name",
+        "closed_revenue"
+      ],
+      "query_rows": [
+        [
+          "Aiko Tanaka",
+          6,
+          "Futura Logistics",
+          23000
+        ],
+        [
+          "Aiko Tanaka",
+          8,
+          "Helios Energy",
+          42000
+        ],
+        [
+          "Lena Ortiz",
+          4,
+          "Delta Health",
+          47000
+        ],
+        [
+          "Maya Chen",
+          1,
+          "Acme Manufacturing",
+          62000
+        ],
+        [
+          "Maya Chen",
+          3,
+          "Cobalt Finance",
+          54000
+        ],
+        [
+          "Noah Patel",
+          2,
+          "Bright Retail",
+          18000
+        ],
+        [
+          "Noah Patel",
+          5,
+          "Evergreen Foods",
+          9000
+        ]
+      ],
+      "query_contract": "aggregate_allowed",
+      "query_sufficient": true,
+      "query_correct": true,
+      "query_result_precision": 0.5,
+      "analysis_result": {
+        "analysis": "group_sum_max",
+        "label": "Maya Chen",
+        "value": 116000,
+        "all_values": {
+          "Aiko Tanaka": 65000,
+          "Lena Ortiz": 47000,
+          "Maya Chen": 116000,
+          "Noah Patel": 27000
+        }
+      },
+      "analysis_correct": true,
+      "qa_passed": false,
+      "qa_issues": [
+        {
+          "issue": "Inconsistent revenue calculation for account managers.",
+          "details": "The query output shows that Aiko Tanaka has a total closed revenue of 65000, but the analysis indicates that the total for Aiko Tanaka is 65000, which is consistent. However, the analysis does not match the expected total for Maya Chen, which should be 116000 based on the query output."
+        },
+        {
+          "issue": "Incorrect grouping in the query.",
+          "details": "The query groups by customer_id and customer_name in addition to account_manager, which is unnecessary for calculating total closed revenue by account manager. This could lead to inflated revenue figures if multiple customers are associated with the same account manager."
+        }
+      ],
+      "final_answer": "Unable to produce a trusted answer. QA issues: [{'issue': 'Inconsistent revenue calculation for account managers.', 'details': 'The query output shows that Aiko Tanaka has a total closed revenue of 65000, but the analysis indicates that the total for Aiko Tanaka is 65000, which is consistent. However, the analysis does not match the expected total for Maya Chen, which should be 116000 based on the query output.'}, {'issue': 'Incorrect grouping in the query.', 'details': 'The query groups by customer_id and customer_name in addition to account_manager, which is unnecessary for calculating total closed revenue by account manager. This could lead to inflated revenue figures if multiple customers are associated with the same account manager.'}]",
+      "final_correct": true,
+      "completeness": 1.0,
+      "latency_sec": 22.1757,
+      "round_count": 8,
+      "query_count": 1,
+      "analysis_execution_count": 1,
+      "llm_call_count": 5,
+      "llm_calls": [
+        {
+          "agent": "task_manager",
+          "output": "{\n  \"route\": [\"metric\", \"discovery\", \"query\", \"analysis\"],\n  \"rationale\": \"The task requires not only querying closed revenue by account manager but also identifying the manager with the highest concentration, which involves post-query computation and ranking.\"\n}",
+          "token_usage": {
+            "input_tokens": 114,
+            "output_tokens": 54,
+            "total_tokens": 168,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        },
+        {
+          "agent": "metric_agent",
+          "output": "{\"metric_id\": \"manager_revenue_concentration\"}",
+          "token_usage": {
+            "input_tokens": 477,
+            "output_tokens": 11,
+            "total_tokens": 488,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        },
+        {
+          "agent": "data_discovery_agent",
+          "output": "{\n  \"tables\": [\n    \"customers\",\n    \"orders\",\n    \"account_managers\"\n  ],\n  \"columns\": [\n    \"account_managers.manager_name\",\n    \"customers.customer_id\",\n    \"customers.customer_name\",\n    \"orders.amount\"\n  ],\n  \"join_keys\": [\n    \"customers.customer_id = orders.customer_id\",\n    \"customers.customer_id = account_managers.customer_id\"\n  ],\n  \"filters\": [\n    \"customers.is_internal = 0\",\n    \"orders.order_status = 'closed'\"\n  ],\n  \"grain\": \"account_manager\",\n  \"data_contract\": {\n    \"tables\": [\n      \"customers\",\n      \"orders\",\n      \"account_managers\"\n    ],\n    \"columns\": [\n      \"account_managers.manager_name\",\n      \"customers.customer_id\",\n      \"customers.customer_name\",\n      \"orders.amount\"\n    ],\n    \"join_keys\": [\n      \"customers.customer_id = orders.customer_id\",\n      \"customers.customer_id = account_managers.customer_id\"\n    ],\n    \"filters\": [\n      \"customers.is_internal = 0\",\n      \"orders.order_status = 'closed'\"\n    ],\n    \"grain\": \"account_manager\"\n  }\n}",
+          "token_usage": {
+            "input_tokens": 352,
+            "output_tokens": 242,
+            "total_tokens": 594,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        },
+        {
+          "agent": "query_agent",
+          "output": "```sql\nSELECT \n    am.manager_name AS account_manager,\n    c.customer_id AS customer_id,\n    c.customer_name AS customer_name,\n    SUM(o.amount) AS closed_revenue\nFROM \n    customers c\nJOIN \n    orders o ON c.customer_id = o.customer_id\nJOIN \n    account_managers am ON c.customer_id = am.customer_id\nWHERE \n    c.is_internal = 0 \n    AND o.order_status = 'closed'\nGROUP BY \n    am.manager_name, c.customer_id, c.customer_name;\n```",
+          "token_usage": {
+            "input_tokens": 457,
+            "output_tokens": 111,
+            "total_tokens": 568,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        },
+        {
+          "agent": "qa_agent",
+          "output": "{\n  \"passed\": false,\n  \"issues\": [\n    {\n      \"issue\": \"Inconsistent revenue calculation for account managers.\",\n      \"details\": \"The query output shows that Aiko Tanaka has a total closed revenue of 65000, but the analysis indicates that the total for Aiko Tanaka is 65000, which is consistent. However, the analysis does not match the expected total for Maya Chen, which should be 116000 based on the query output.\"\n    },\n    {\n      \"issue\": \"Incorrect grouping in the query.\",\n      \"details\": \"The query groups by customer_id and customer_name in addition to account_manager, which is unnecessary for calculating total closed revenue by account manager. This could lead to inflated revenue figures if multiple customers are associated with the same account manager.\"\n    }\n  ]\n}",
+          "token_usage": {
+            "input_tokens": 703,
+            "output_tokens": 168,
+            "total_tokens": 871,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        }
+      ],
+      "trace": [
+        {
+          "agent": "task_manager",
+          "content": {
+            "route": [
+              "metric",
+              "discovery",
+              "query",
+              "analysis"
+            ],
+            "rationale": "The task requires not only querying closed revenue by account manager but also identifying the manager with the highest concentration, which involves post-query computation and ranking."
+          }
+        },
+        {
+          "agent": "metric_agent",
+          "content": {
+            "metric_id": "manager_revenue_concentration",
+            "definition": "Closed revenue by account manager, excluding internal accounts.",
+            "business_rules": [
+              "Exclude internal test accounts.",
+              "Revenue is the sum of closed order amounts.",
+              "Group customers by account manager."
+            ]
+          }
+        },
+        {
+          "agent": "data_discovery_agent",
+          "content": {
+            "tables": [
+              "customers",
+              "orders",
+              "account_managers"
+            ],
+            "columns": [
+              "account_managers.manager_name",
+              "customers.customer_id",
+              "customers.customer_name",
+              "orders.amount"
+            ],
+            "join_keys": [
+              "customers.customer_id = orders.customer_id",
+              "customers.customer_id = account_managers.customer_id"
+            ],
+            "filters": [
+              "customers.is_internal = 0",
+              "orders.order_status = 'closed'"
+            ],
+            "grain": "account_manager",
+            "data_contract": {
+              "tables": [
+                "customers",
+                "orders",
+                "account_managers"
+              ],
+              "columns": [
+                "account_managers.manager_name",
+                "customers.customer_id",
+                "customers.customer_name",
+                "orders.amount"
+              ],
+              "join_keys": [
+                "customers.customer_id = orders.customer_id",
+                "customers.customer_id = account_managers.customer_id"
+              ],
+              "filters": [
+                "customers.is_internal = 0",
+                "orders.order_status = 'closed'"
+              ],
+              "grain": "account_manager"
+            }
+          }
+        },
+        {
+          "agent": "query_agent",
+          "content": {
+            "query": "SELECT \n    am.manager_name AS account_manager,\n    c.customer_id AS customer_id,\n    c.customer_name AS customer_name,\n    SUM(o.amount) AS closed_revenue\nFROM \n    customers c\nJOIN \n    orders o ON c.customer_id = o.customer_id\nJOIN \n    account_managers am ON c.customer_id = am.customer_id\nWHERE \n    c.is_internal = 0 \n    AND o.order_status = 'closed'\nGROUP BY \n    am.manager_name, c.customer_id, c.customer_name;"
+          }
+        },
+        {
+          "agent": "query_executor",
+          "content": {
+            "columns": [
+              "account_manager",
+              "customer_id",
+              "customer_name",
+              "closed_revenue"
+            ],
+            "rows": [
+              [
+                "Aiko Tanaka",
+                6,
+                "Futura Logistics",
+                23000
+              ],
+              [
+                "Aiko Tanaka",
+                8,
+                "Helios Energy",
+                42000
+              ],
+              [
+                "Lena Ortiz",
+                4,
+                "Delta Health",
+                47000
+              ],
+              [
+                "Maya Chen",
+                1,
+                "Acme Manufacturing",
+                62000
+              ],
+              [
+                "Maya Chen",
+                3,
+                "Cobalt Finance",
+                54000
+              ],
+              [
+                "Noah Patel",
+                2,
+                "Bright Retail",
+                18000
+              ],
+              [
+                "Noah Patel",
+                5,
+                "Evergreen Foods",
+                9000
+              ]
+            ],
+            "error": null
+          }
+        },
+        {
+          "agent": "analysis_agent",
+          "content": {
+            "analysis": "group_sum_max",
+            "label": "Maya Chen",
+            "value": 116000,
+            "all_values": {
+              "Aiko Tanaka": 65000,
+              "Lena Ortiz": 47000,
+              "Maya Chen": 116000,
+              "Noah Patel": 27000
+            }
+          }
+        },
+        {
+          "agent": "qa_agent",
+          "content": {
+            "passed": false,
+            "issues": [
+              {
+                "issue": "Inconsistent revenue calculation for account managers.",
+                "details": "The query output shows that Aiko Tanaka has a total closed revenue of 65000, but the analysis indicates that the total for Aiko Tanaka is 65000, which is consistent. However, the analysis does not match the expected total for Maya Chen, which should be 116000 based on the query output."
+              },
+              {
+                "issue": "Incorrect grouping in the query.",
+                "details": "The query groups by customer_id and customer_name in addition to account_manager, which is unnecessary for calculating total closed revenue by account manager. This could lead to inflated revenue figures if multiple customers are associated with the same account manager."
+              }
+            ]
+          }
+        },
+        {
+          "agent": "insight_agent",
+          "content": {
+            "final_answer": "Unable to produce a trusted answer. QA issues: [{'issue': 'Inconsistent revenue calculation for account managers.', 'details': 'The query output shows that Aiko Tanaka has a total closed revenue of 65000, but the analysis indicates that the total for Aiko Tanaka is 65000, which is consistent. However, the analysis does not match the expected total for Maya Chen, which should be 116000 based on the query output.'}, {'issue': 'Incorrect grouping in the query.', 'details': 'The query groups by customer_id and customer_name in addition to account_manager, which is unnecessary for calculating total closed revenue by account manager. This could lead to inflated revenue figures if multiple customers are associated with the same account manager.'}]"
+          }
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "id": "regional_active_revenue_chart",
+      "question": "Prepare chart-ready data for closed revenue by region among active customers.",
+      "run_question": "Prepare chart-ready data for closed revenue by region among active customers.",
+      "expected_route": [
+        "metric",
+        "discovery",
+        "query",
+        "analysis"
+      ],
+      "planned_route": [
+        "metric",
+        "discovery",
+        "query",
+        "analysis"
+      ],
+      "route_correct": true,
+      "route_exact_match": true,
+      "route_covered": true,
+      "unnecessary_steps": [],
+      "unnecessary_step_count": 0,
+      "expected_metric": "regional_active_customer_revenue",
+      "metric_context": {
+        "metric_id": "regional_active_customer_revenue",
+        "definition": "Closed revenue by region for active, non-internal customers.",
+        "business_rules": [
+          "Exclude internal test accounts.",
+          "Only include customers with status = active.",
+          "Revenue is the sum of closed order amounts grouped by region."
+        ]
+      },
+      "metric_correct": true,
+      "expected_tables": [
+        "customers",
+        "orders"
+      ],
+      "expected_columns": [
+        "region",
+        "amount"
+      ],
+      "data_context": {
+        "tables": [
+          "customers",
+          "orders"
+        ],
+        "columns": [
+          "region",
+          "amount"
+        ],
+        "join_keys": [
+          "customers.customer_id = orders.customer_id"
+        ],
+        "filters": [
+          "customers.status = 'active'",
+          "customers.is_internal = 0",
+          "orders.order_status = 'closed'"
+        ],
+        "grain": "one row per qualifying closed order grouped by customer region",
+        "data_contract": {
+          "tables": [
+            "customers",
+            "orders"
+          ],
+          "columns": [
+            "region",
+            "amount"
+          ],
+          "join_keys": [
+            "customers.customer_id = orders.customer_id"
+          ],
+          "filters": [
+            "customers.status = 'active'",
+            "customers.is_internal = 0",
+            "orders.order_status = 'closed'"
+          ],
+          "grain": "one row per qualifying closed order grouped by customer region"
+        }
+      },
+      "data_discovery_tables_correct": true,
+      "data_discovery_columns_correct": true,
+      "data_discovery_column_precision": 1.0,
+      "data_discovery_joins_correct": true,
+      "data_discovery_filters_correct": true,
+      "data_discovery_correct": true,
+      "expected_query": "\n        SELECT c.region, o.amount\n        FROM customers c\n        JOIN orders o ON c.customer_id = o.customer_id\n        WHERE c.status='active'\n          AND c.is_internal=0\n          AND o.order_status='closed';\n        ",
+      "executed_query": "SELECT \n    c.region AS region, \n    SUM(o.amount) AS closed_revenue\nFROM \n    customers c\nJOIN \n    orders o ON c.customer_id = o.customer_id\nWHERE \n    c.status = 'active' \n    AND c.is_internal = 0 \n    AND o.order_status = 'closed'\nGROUP BY \n    c.region;",
+      "query_columns": [
+        "region",
+        "closed_revenue"
+      ],
+      "query_rows": [
+        [
+          "APAC",
+          23000
+        ],
+        [
+          "Europe",
+          54000
+        ],
+        [
+          "North America",
+          89000
+        ]
+      ],
+      "query_contract": "aggregate_allowed",
+      "query_sufficient": true,
+      "query_correct": true,
+      "query_result_precision": 1.0,
+      "analysis_result": {
+        "analysis": "group_sum_chart",
+        "chart_type": "bar",
+        "rows": [
+          [
+            "APAC",
+            23000
+          ],
+          [
+            "Europe",
+            54000
+          ],
+          [
+            "North America",
+            89000
+          ]
+        ]
+      },
+      "analysis_correct": true,
+      "qa_passed": true,
+      "qa_issues": [],
+      "final_answer": "The chart-ready data for closed revenue by region among active customers is as follows:\n\n- Region: APAC, Closed Revenue: 23000\n- Region: Europe, Closed Revenue: 54000\n- Region: North America, Closed Revenue: 89000\n\nThis data is suitable for a bar chart.",
+      "final_correct": true,
+      "completeness": 1.0,
+      "latency_sec": 9.912,
+      "round_count": 8,
+      "query_count": 1,
+      "analysis_execution_count": 1,
+      "llm_call_count": 6,
+      "llm_calls": [
+        {
+          "agent": "task_manager",
+          "output": "{\n  \"route\": [\"metric\", \"discovery\", \"query\", \"analysis\"],\n  \"rationale\": \"The task requires chart-ready output for closed revenue by region among active customers, which involves post-query computation and analysis to prepare the data for visualization.\"\n}",
+          "token_usage": {
+            "input_tokens": 112,
+            "output_tokens": 54,
+            "total_tokens": 166,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        },
+        {
+          "agent": "metric_agent",
+          "output": "{\"metric_id\": \"regional_active_customer_revenue\"}",
+          "token_usage": {
+            "input_tokens": 475,
+            "output_tokens": 11,
+            "total_tokens": 486,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        },
+        {
+          "agent": "data_discovery_agent",
+          "output": "{\n  \"tables\": [\n    \"customers\",\n    \"orders\"\n  ],\n  \"columns\": [\n    \"customers.region\",\n    \"customers.customer_id\",\n    \"customers.status\",\n    \"orders.amount\"\n  ],\n  \"join_keys\": [\n    \"customers.customer_id = orders.customer_id\"\n  ],\n  \"filters\": [\n    \"customers.is_internal = 0\",\n    \"customers.status = 'active'\"\n  ],\n  \"grain\": \"region, customer_id\",\n  \"data_contract\": {\n    \"tables\": [\n      \"customers\",\n      \"orders\"\n    ],\n    \"columns\": [\n      \"customers.region\",\n      \"customers.customer_id\",\n      \"customers.status\",\n      \"orders.amount\"\n    ],\n    \"join_keys\": [\n      \"customers.customer_id = orders.customer_id\"\n    ],\n    \"filters\": [\n      \"customers.is_internal = 0\",\n      \"customers.status = 'active'\"\n    ],\n    \"grain\": \"region, customer_id\"\n  }\n}",
+          "token_usage": {
+            "input_tokens": 359,
+            "output_tokens": 200,
+            "total_tokens": 559,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        },
+        {
+          "agent": "query_agent",
+          "output": "```sql\nSELECT \n    c.region AS region, \n    SUM(o.amount) AS closed_revenue\nFROM \n    customers c\nJOIN \n    orders o ON c.customer_id = o.customer_id\nWHERE \n    c.status = 'active' \n    AND c.is_internal = 0 \n    AND o.order_status = 'closed'\nGROUP BY \n    c.region;\n```",
+          "token_usage": {
+            "input_tokens": 432,
+            "output_tokens": 78,
+            "total_tokens": 510,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        },
+        {
+          "agent": "qa_agent",
+          "output": "{\n  \"passed\": true,\n  \"issues\": []\n}",
+          "token_usage": {
+            "input_tokens": 518,
+            "output_tokens": 13,
+            "total_tokens": 531,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        },
+        {
+          "agent": "insight_agent",
+          "output": "The chart-ready data for closed revenue by region among active customers is as follows:\n\n- Region: APAC, Closed Revenue: 23000\n- Region: Europe, Closed Revenue: 54000\n- Region: North America, Closed Revenue: 89000\n\nThis data is suitable for a bar chart.",
+          "token_usage": {
+            "input_tokens": 262,
+            "output_tokens": 63,
+            "total_tokens": 325,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        }
+      ],
+      "trace": [
+        {
+          "agent": "task_manager",
+          "content": {
+            "route": [
+              "metric",
+              "discovery",
+              "query",
+              "analysis"
+            ],
+            "rationale": "The task requires chart-ready output for closed revenue by region among active customers, which involves post-query computation and analysis to prepare the data for visualization."
+          }
+        },
+        {
+          "agent": "metric_agent",
+          "content": {
+            "metric_id": "regional_active_customer_revenue",
+            "definition": "Closed revenue by region for active, non-internal customers.",
+            "business_rules": [
+              "Exclude internal test accounts.",
+              "Only include customers with status = active.",
+              "Revenue is the sum of closed order amounts grouped by region."
+            ]
+          }
+        },
+        {
+          "agent": "data_discovery_agent",
+          "content": {
+            "tables": [
+              "customers",
+              "orders"
+            ],
+            "columns": [
+              "region",
+              "amount"
+            ],
+            "join_keys": [
+              "customers.customer_id = orders.customer_id"
+            ],
+            "filters": [
+              "customers.status = 'active'",
+              "customers.is_internal = 0",
+              "orders.order_status = 'closed'"
+            ],
+            "grain": "one row per qualifying closed order grouped by customer region",
+            "data_contract": {
+              "tables": [
+                "customers",
+                "orders"
+              ],
+              "columns": [
+                "region",
+                "amount"
+              ],
+              "join_keys": [
+                "customers.customer_id = orders.customer_id"
+              ],
+              "filters": [
+                "customers.status = 'active'",
+                "customers.is_internal = 0",
+                "orders.order_status = 'closed'"
+              ],
+              "grain": "one row per qualifying closed order grouped by customer region"
+            }
+          }
+        },
+        {
+          "agent": "query_agent",
+          "content": {
+            "query": "SELECT \n    c.region AS region, \n    SUM(o.amount) AS closed_revenue\nFROM \n    customers c\nJOIN \n    orders o ON c.customer_id = o.customer_id\nWHERE \n    c.status = 'active' \n    AND c.is_internal = 0 \n    AND o.order_status = 'closed'\nGROUP BY \n    c.region;"
+          }
+        },
+        {
+          "agent": "query_executor",
+          "content": {
+            "columns": [
+              "region",
+              "closed_revenue"
+            ],
+            "rows": [
+              [
+                "APAC",
+                23000
+              ],
+              [
+                "Europe",
+                54000
+              ],
+              [
+                "North America",
+                89000
+              ]
+            ],
+            "error": null
+          }
+        },
+        {
+          "agent": "analysis_agent",
+          "content": {
+            "analysis": "group_sum_chart",
+            "chart_type": "bar",
+            "rows": [
+              [
+                "APAC",
+                23000
+              ],
+              [
+                "Europe",
+                54000
+              ],
+              [
+                "North America",
+                89000
+              ]
+            ]
+          }
+        },
+        {
+          "agent": "qa_agent",
+          "content": {
+            "passed": true,
+            "issues": []
+          }
+        },
+        {
+          "agent": "insight_agent",
+          "content": {
+            "final_answer": "The chart-ready data for closed revenue by region among active customers is as follows:\n\n- Region: APAC, Closed Revenue: 23000\n- Region: Europe, Closed Revenue: 54000\n- Region: North America, Closed Revenue: 89000\n\nThis data is suitable for a bar chart."
+          }
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "id": "segment_active_revenue_mix",
+      "question": "Prepare chart-ready data for closed revenue by customer segment among active customers.",
+      "run_question": "Prepare chart-ready data for closed revenue by customer segment among active customers.",
+      "expected_route": [
+        "metric",
+        "discovery",
+        "query",
+        "analysis"
+      ],
+      "planned_route": [
+        "metric",
+        "discovery",
+        "query",
+        "analysis"
+      ],
+      "route_correct": true,
+      "route_exact_match": true,
+      "route_covered": true,
+      "unnecessary_steps": [],
+      "unnecessary_step_count": 0,
+      "expected_metric": "segment_active_revenue_mix",
+      "metric_context": {
+        "metric_id": "segment_active_revenue_mix",
+        "definition": "Closed revenue by customer segment for active, non-internal customers.",
+        "business_rules": [
+          "Exclude internal test accounts.",
+          "Only include customers with status = active.",
+          "Revenue is the sum of closed order amounts grouped by segment."
+        ]
+      },
+      "metric_correct": true,
+      "expected_tables": [
+        "customers",
+        "orders"
+      ],
+      "expected_columns": [
+        "segment",
+        "amount"
+      ],
+      "data_context": {
+        "tables": [
+          "customers",
+          "orders"
+        ],
+        "columns": [
+          "segment",
+          "amount"
+        ],
+        "join_keys": [
+          "customers.customer_id = orders.customer_id"
+        ],
+        "filters": [
+          "customers.status = 'active'",
+          "customers.is_internal = 0",
+          "orders.order_status = 'closed'"
+        ],
+        "grain": "one row per qualifying closed order grouped by customer segment",
+        "data_contract": {
+          "tables": [
+            "customers",
+            "orders"
+          ],
+          "columns": [
+            "segment",
+            "amount"
+          ],
+          "join_keys": [
+            "customers.customer_id = orders.customer_id"
+          ],
+          "filters": [
+            "customers.status = 'active'",
+            "customers.is_internal = 0",
+            "orders.order_status = 'closed'"
+          ],
+          "grain": "one row per qualifying closed order grouped by customer segment"
+        }
+      },
+      "data_discovery_tables_correct": true,
+      "data_discovery_columns_correct": true,
+      "data_discovery_column_precision": 1.0,
+      "data_discovery_joins_correct": true,
+      "data_discovery_filters_correct": true,
+      "data_discovery_correct": true,
+      "expected_query": "\n        SELECT c.segment, o.amount\n        FROM customers c\n        JOIN orders o ON c.customer_id = o.customer_id\n        WHERE c.status='active'\n          AND c.is_internal=0\n          AND o.order_status='closed';\n        ",
+      "executed_query": "SELECT \n    c.segment AS customer_segment, \n    SUM(o.amount) AS closed_revenue\nFROM \n    customers c\nJOIN \n    orders o ON c.customer_id = o.customer_id\nWHERE \n    c.status = 'active' \n    AND c.is_internal = 0 \n    AND o.order_status = 'closed'\nGROUP BY \n    c.segment;",
+      "query_columns": [
+        "customer_segment",
+        "closed_revenue"
+      ],
+      "query_rows": [
+        [
+          "Enterprise",
+          116000
+        ],
+        [
+          "Mid-Market",
+          41000
+        ],
+        [
+          "SMB",
+          9000
+        ]
+      ],
+      "query_contract": "aggregate_allowed",
+      "query_sufficient": true,
+      "query_correct": true,
+      "query_result_precision": 1.0,
+      "analysis_result": {
+        "analysis": "group_sum_chart",
+        "chart_type": "bar",
+        "rows": [
+          [
+            "Enterprise",
+            116000
+          ],
+          [
+            "Mid-Market",
+            41000
+          ],
+          [
+            "SMB",
+            9000
+          ]
+        ]
+      },
+      "analysis_correct": true,
+      "qa_passed": true,
+      "qa_issues": [],
+      "final_answer": "The chart-ready data for closed revenue by customer segment among active customers is as follows:\n\n- Customer Segment: Enterprise, Closed Revenue: 116000\n- Customer Segment: Mid-Market, Closed Revenue: 41000\n- Customer Segment: SMB, Closed Revenue: 9000\n\nThis data is suitable for a bar chart.",
+      "final_correct": true,
+      "completeness": 1.0,
+      "latency_sec": 9.3322,
+      "round_count": 8,
+      "query_count": 1,
+      "analysis_execution_count": 1,
+      "llm_call_count": 6,
+      "llm_calls": [
+        {
+          "agent": "task_manager",
+          "output": "{\n  \"route\": [\"metric\", \"discovery\", \"query\", \"analysis\"],\n  \"rationale\": \"The task requires chart-ready output for closed revenue by customer segment, which involves post-query computation and analysis to prepare the data for visualization.\"\n}",
+          "token_usage": {
+            "input_tokens": 113,
+            "output_tokens": 52,
+            "total_tokens": 165,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        },
+        {
+          "agent": "metric_agent",
+          "output": "{\"metric_id\": \"segment_active_revenue_mix\"}",
+          "token_usage": {
+            "input_tokens": 476,
+            "output_tokens": 11,
+            "total_tokens": 487,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        },
+        {
+          "agent": "data_discovery_agent",
+          "output": "{\n  \"tables\": [\n    \"customers\",\n    \"orders\"\n  ],\n  \"columns\": [\n    \"customers.segment\",\n    \"customers.customer_id\",\n    \"customers.status\",\n    \"orders.amount\"\n  ],\n  \"join_keys\": [\n    \"customers.customer_id = orders.customer_id\"\n  ],\n  \"filters\": [\n    \"customers.is_internal = 0\",\n    \"customers.status = 'active'\"\n  ],\n  \"grain\": \"segment\",\n  \"data_contract\": {\n    \"tables\": [\n      \"customers\",\n      \"orders\"\n    ],\n    \"columns\": [\n      \"customers.segment\",\n      \"customers.customer_id\",\n      \"customers.status\",\n      \"orders.amount\"\n    ],\n    \"join_keys\": [\n      \"customers.customer_id = orders.customer_id\"\n    ],\n    \"filters\": [\n      \"customers.is_internal = 0\",\n      \"customers.status = 'active'\"\n    ],\n    \"grain\": \"segment\"\n  }\n}",
+          "token_usage": {
+            "input_tokens": 360,
+            "output_tokens": 194,
+            "total_tokens": 554,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        },
+        {
+          "agent": "query_agent",
+          "output": "```sql\nSELECT \n    c.segment AS customer_segment, \n    SUM(o.amount) AS closed_revenue\nFROM \n    customers c\nJOIN \n    orders o ON c.customer_id = o.customer_id\nWHERE \n    c.status = 'active' \n    AND c.is_internal = 0 \n    AND o.order_status = 'closed'\nGROUP BY \n    c.segment;\n```",
+          "token_usage": {
+            "input_tokens": 433,
+            "output_tokens": 79,
+            "total_tokens": 512,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        },
+        {
+          "agent": "qa_agent",
+          "output": "{\n  \"passed\": true,\n  \"issues\": []\n}",
+          "token_usage": {
+            "input_tokens": 521,
+            "output_tokens": 13,
+            "total_tokens": 534,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        },
+        {
+          "agent": "insight_agent",
+          "output": "The chart-ready data for closed revenue by customer segment among active customers is as follows:\n\n- Customer Segment: Enterprise, Closed Revenue: 116000\n- Customer Segment: Mid-Market, Closed Revenue: 41000\n- Customer Segment: SMB, Closed Revenue: 9000\n\nThis data is suitable for a bar chart.",
+          "token_usage": {
+            "input_tokens": 267,
+            "output_tokens": 67,
+            "total_tokens": 334,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        }
+      ],
+      "trace": [
+        {
+          "agent": "task_manager",
+          "content": {
+            "route": [
+              "metric",
+              "discovery",
+              "query",
+              "analysis"
+            ],
+            "rationale": "The task requires chart-ready output for closed revenue by customer segment, which involves post-query computation and analysis to prepare the data for visualization."
+          }
+        },
+        {
+          "agent": "metric_agent",
+          "content": {
+            "metric_id": "segment_active_revenue_mix",
+            "definition": "Closed revenue by customer segment for active, non-internal customers.",
+            "business_rules": [
+              "Exclude internal test accounts.",
+              "Only include customers with status = active.",
+              "Revenue is the sum of closed order amounts grouped by segment."
+            ]
+          }
+        },
+        {
+          "agent": "data_discovery_agent",
+          "content": {
+            "tables": [
+              "customers",
+              "orders"
+            ],
+            "columns": [
+              "segment",
+              "amount"
+            ],
+            "join_keys": [
+              "customers.customer_id = orders.customer_id"
+            ],
+            "filters": [
+              "customers.status = 'active'",
+              "customers.is_internal = 0",
+              "orders.order_status = 'closed'"
+            ],
+            "grain": "one row per qualifying closed order grouped by customer segment",
+            "data_contract": {
+              "tables": [
+                "customers",
+                "orders"
+              ],
+              "columns": [
+                "segment",
+                "amount"
+              ],
+              "join_keys": [
+                "customers.customer_id = orders.customer_id"
+              ],
+              "filters": [
+                "customers.status = 'active'",
+                "customers.is_internal = 0",
+                "orders.order_status = 'closed'"
+              ],
+              "grain": "one row per qualifying closed order grouped by customer segment"
+            }
+          }
+        },
+        {
+          "agent": "query_agent",
+          "content": {
+            "query": "SELECT \n    c.segment AS customer_segment, \n    SUM(o.amount) AS closed_revenue\nFROM \n    customers c\nJOIN \n    orders o ON c.customer_id = o.customer_id\nWHERE \n    c.status = 'active' \n    AND c.is_internal = 0 \n    AND o.order_status = 'closed'\nGROUP BY \n    c.segment;"
+          }
+        },
+        {
+          "agent": "query_executor",
+          "content": {
+            "columns": [
+              "customer_segment",
+              "closed_revenue"
+            ],
+            "rows": [
+              [
+                "Enterprise",
+                116000
+              ],
+              [
+                "Mid-Market",
+                41000
+              ],
+              [
+                "SMB",
+                9000
+              ]
+            ],
+            "error": null
+          }
+        },
+        {
+          "agent": "analysis_agent",
+          "content": {
+            "analysis": "group_sum_chart",
+            "chart_type": "bar",
+            "rows": [
+              [
+                "Enterprise",
+                116000
+              ],
+              [
+                "Mid-Market",
+                41000
+              ],
+              [
+                "SMB",
+                9000
+              ]
+            ]
+          }
+        },
+        {
+          "agent": "qa_agent",
+          "content": {
+            "passed": true,
+            "issues": []
+          }
+        },
+        {
+          "agent": "insight_agent",
+          "content": {
+            "final_answer": "The chart-ready data for closed revenue by customer segment among active customers is as follows:\n\n- Customer Segment: Enterprise, Closed Revenue: 116000\n- Customer Segment: Mid-Market, Closed Revenue: 41000\n- Customer Segment: SMB, Closed Revenue: 9000\n\nThis data is suitable for a bar chart."
+          }
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "id": "churned_customer_revenue",
+      "question": "How much closed revenue came from churned customers? Exclude internal accounts.",
+      "run_question": "How much closed revenue came from churned customers? Exclude internal accounts.",
+      "expected_route": [
+        "metric",
+        "discovery",
+        "query"
+      ],
+      "planned_route": [
+        "metric",
+        "discovery",
+        "query",
+        "analysis"
+      ],
+      "route_correct": false,
+      "route_exact_match": false,
+      "route_covered": true,
+      "unnecessary_steps": [
+        "analysis"
+      ],
+      "unnecessary_step_count": 1,
+      "expected_metric": "churned_customer_revenue",
+      "metric_context": {
+        "metric_id": "churned_customer_revenue",
+        "definition": "Closed revenue from churned, non-internal customers.",
+        "business_rules": [
+          "Exclude internal test accounts.",
+          "Only include customers with status = churned.",
+          "Revenue is the sum of closed order amounts."
+        ]
+      },
+      "metric_correct": true,
+      "expected_tables": [
+        "customers",
+        "orders"
+      ],
+      "expected_columns": [
+        "amount"
+      ],
+      "data_context": {
+        "tables": [
+          "customers",
+          "orders"
+        ],
+        "columns": [
+          "amount"
+        ],
+        "join_keys": [
+          "customers.customer_id = orders.customer_id"
+        ],
+        "filters": [
+          "customers.status = 'churned'",
+          "customers.is_internal = 0",
+          "orders.order_status = 'closed'"
+        ],
+        "grain": "one row per churned non-internal customer's closed order; aggregate to one revenue total",
+        "data_contract": {
+          "tables": [
+            "customers",
+            "orders"
+          ],
+          "columns": [
+            "amount"
+          ],
+          "join_keys": [
+            "customers.customer_id = orders.customer_id"
+          ],
+          "filters": [
+            "customers.status = 'churned'",
+            "customers.is_internal = 0",
+            "orders.order_status = 'closed'"
+          ],
+          "grain": "one row per churned non-internal customer's closed order; aggregate to one revenue total"
+        }
+      },
+      "data_discovery_tables_correct": true,
+      "data_discovery_columns_correct": true,
+      "data_discovery_column_precision": 1.0,
+      "data_discovery_joins_correct": true,
+      "data_discovery_filters_correct": true,
+      "data_discovery_correct": true,
+      "expected_query": "\n        SELECT SUM(o.amount) AS revenue\n        FROM customers c\n        JOIN orders o ON c.customer_id = o.customer_id\n        WHERE c.status='churned'\n          AND c.is_internal=0\n          AND o.order_status='closed';\n        ",
+      "executed_query": "SELECT SUM(orders.amount) AS churned_customer_revenue\nFROM customers\nJOIN orders ON customers.customer_id = orders.customer_id\nWHERE customers.status = 'churned'\n  AND customers.is_internal = 0\n  AND orders.order_status = 'closed';",
+      "query_columns": [
+        "churned_customer_revenue"
+      ],
+      "query_rows": [
+        [
+          42000
+        ]
+      ],
+      "query_contract": "exact_result",
+      "query_sufficient": true,
+      "query_correct": true,
+      "query_result_precision": 1.0,
+      "analysis_result": {
+        "analysis": "passthrough",
+        "rows": [
+          [
+            42000
+          ]
+        ]
+      },
+      "analysis_correct": true,
+      "qa_passed": true,
+      "qa_issues": [],
+      "final_answer": "The closed revenue from churned customers, excluding internal accounts, is 42000.",
+      "final_correct": true,
+      "completeness": 1.0,
+      "latency_sec": 12.3853,
+      "round_count": 8,
+      "query_count": 1,
+      "analysis_execution_count": 1,
+      "llm_call_count": 6,
+      "llm_calls": [
+        {
+          "agent": "task_manager",
+          "output": "{\n  \"route\": [\"metric\", \"discovery\", \"query\", \"analysis\"],\n  \"rationale\": \"The question requires a detailed analysis of closed revenue specifically from churned customers, which involves post-query computation to derive insights such as ranking or identifying maximum values. Therefore, the analysis route is appropriate.\"\n}",
+          "token_usage": {
+            "input_tokens": 114,
+            "output_tokens": 64,
+            "total_tokens": 178,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        },
+        {
+          "agent": "metric_agent",
+          "output": "{\"metric_id\": \"churned_customer_revenue\"}",
+          "token_usage": {
+            "input_tokens": 477,
+            "output_tokens": 12,
+            "total_tokens": 489,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        },
+        {
+          "agent": "data_discovery_agent",
+          "output": "{\n  \"tables\": [\n    \"customers\",\n    \"orders\"\n  ],\n  \"columns\": [\n    \"customers.customer_id\",\n    \"customers.status\",\n    \"orders.amount\"\n  ],\n  \"join_keys\": [\n    \"customers.customer_id = orders.customer_id\"\n  ],\n  \"filters\": [\n    \"customers.is_internal = 0\",\n    \"customers.status = 'churned'\"\n  ],\n  \"grain\": \"customer_id\",\n  \"data_contract\": {\n    \"tables\": [\n      \"customers\",\n      \"orders\"\n    ],\n    \"columns\": [\n      \"customers.customer_id\",\n      \"customers.status\",\n      \"orders.amount\"\n    ],\n    \"join_keys\": [\n      \"customers.customer_id = orders.customer_id\"\n    ],\n    \"filters\": [\n      \"customers.is_internal = 0\",\n      \"customers.status = 'churned'\"\n    ],\n    \"grain\": \"customer_id\"\n  }\n}",
+          "token_usage": {
+            "input_tokens": 357,
+            "output_tokens": 190,
+            "total_tokens": 547,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        },
+        {
+          "agent": "query_agent",
+          "output": "```sql\nSELECT SUM(orders.amount) AS churned_customer_revenue\nFROM customers\nJOIN orders ON customers.customer_id = orders.customer_id\nWHERE customers.status = 'churned'\n  AND customers.is_internal = 0\n  AND orders.order_status = 'closed';\n```",
+          "token_usage": {
+            "input_tokens": 442,
+            "output_tokens": 58,
+            "total_tokens": 500,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        },
+        {
+          "agent": "qa_agent",
+          "output": "{\n  \"passed\": true,\n  \"issues\": []\n}",
+          "token_usage": {
+            "input_tokens": 472,
+            "output_tokens": 13,
+            "total_tokens": 485,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        },
+        {
+          "agent": "insight_agent",
+          "output": "The closed revenue from churned customers, excluding internal accounts, is 42000.",
+          "token_usage": {
+            "input_tokens": 216,
+            "output_tokens": 17,
+            "total_tokens": 233,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        }
+      ],
+      "trace": [
+        {
+          "agent": "task_manager",
+          "content": {
+            "route": [
+              "metric",
+              "discovery",
+              "query",
+              "analysis"
+            ],
+            "rationale": "The question requires a detailed analysis of closed revenue specifically from churned customers, which involves post-query computation to derive insights such as ranking or identifying maximum values. Therefore, the analysis route is appropriate."
+          }
+        },
+        {
+          "agent": "metric_agent",
+          "content": {
+            "metric_id": "churned_customer_revenue",
+            "definition": "Closed revenue from churned, non-internal customers.",
+            "business_rules": [
+              "Exclude internal test accounts.",
+              "Only include customers with status = churned.",
+              "Revenue is the sum of closed order amounts."
+            ]
+          }
+        },
+        {
+          "agent": "data_discovery_agent",
+          "content": {
+            "tables": [
+              "customers",
+              "orders"
+            ],
+            "columns": [
+              "amount"
+            ],
+            "join_keys": [
+              "customers.customer_id = orders.customer_id"
+            ],
+            "filters": [
+              "customers.status = 'churned'",
+              "customers.is_internal = 0",
+              "orders.order_status = 'closed'"
+            ],
+            "grain": "one row per churned non-internal customer's closed order; aggregate to one revenue total",
+            "data_contract": {
+              "tables": [
+                "customers",
+                "orders"
+              ],
+              "columns": [
+                "amount"
+              ],
+              "join_keys": [
+                "customers.customer_id = orders.customer_id"
+              ],
+              "filters": [
+                "customers.status = 'churned'",
+                "customers.is_internal = 0",
+                "orders.order_status = 'closed'"
+              ],
+              "grain": "one row per churned non-internal customer's closed order; aggregate to one revenue total"
+            }
+          }
+        },
+        {
+          "agent": "query_agent",
+          "content": {
+            "query": "SELECT SUM(orders.amount) AS churned_customer_revenue\nFROM customers\nJOIN orders ON customers.customer_id = orders.customer_id\nWHERE customers.status = 'churned'\n  AND customers.is_internal = 0\n  AND orders.order_status = 'closed';"
+          }
+        },
+        {
+          "agent": "query_executor",
+          "content": {
+            "columns": [
+              "churned_customer_revenue"
+            ],
+            "rows": [
+              [
+                42000
+              ]
+            ],
+            "error": null
+          }
+        },
+        {
+          "agent": "analysis_agent",
+          "content": {
+            "analysis": "passthrough",
+            "rows": [
+              [
+                42000
+              ]
+            ]
+          }
+        },
+        {
+          "agent": "qa_agent",
+          "content": {
+            "passed": true,
+            "issues": []
+          }
+        },
+        {
+          "agent": "insight_agent",
+          "content": {
+            "final_answer": "The closed revenue from churned customers, excluding internal accounts, is 42000."
+          }
+        }
+      ],
+      "notes": ""
+    }
+  ],
+  "robust_results": [
+    {
+      "id": "high_value_active_revenue",
+      "question": "How much closed revenue came from high-value active customers? Exclude internal accounts.",
+      "run_question": "How much closed revenue came from strategic active customers? Exclude internal accounts.",
+      "expected_route": [
+        "metric",
+        "discovery",
+        "query"
+      ],
+      "planned_route": [
+        "metric",
+        "discovery",
+        "query",
+        "analysis"
+      ],
+      "route_correct": false,
+      "route_exact_match": false,
+      "route_covered": true,
+      "unnecessary_steps": [
+        "analysis"
+      ],
+      "unnecessary_step_count": 1,
+      "expected_metric": "high_value_active_revenue",
+      "metric_context": {
+        "metric_id": "high_value_active_revenue",
+        "definition": "Total closed order revenue for active, non-internal customers whose annual contract value is at least 20000.",
+        "business_rules": [
+          "Exclude internal test accounts.",
+          "Only include customers with status = active.",
+          "High-value means annual_contract_value >= 20000.",
+          "Revenue is the sum of closed order amounts."
+        ]
+      },
+      "metric_correct": true,
+      "expected_tables": [
+        "customers",
+        "orders"
+      ],
+      "expected_columns": [
+        "amount"
+      ],
+      "data_context": {
+        "tables": [
+          "customers",
+          "orders"
+        ],
+        "columns": [
+          "customers.customer_id",
+          "customers.customer_name",
+          "customers.segment",
+          "customers.region",
+          "customers.status",
+          "customers.annual_contract_value",
+          "orders.amount"
+        ],
+        "join_keys": [
+          "customers.customer_id = orders.customer_id"
+        ],
+        "filters": [
+          "customers.is_internal = 0",
+          "customers.status = 'active'",
+          "customers.annual_contract_value >= 20000",
+          "orders.order_status = 'closed'"
+        ],
+        "grain": "customer_id",
+        "data_contract": {
+          "tables": [
+            "customers",
+            "orders"
+          ],
+          "columns": [
+            "customers.customer_id",
+            "customers.customer_name",
+            "customers.segment",
+            "customers.region",
+            "customers.status",
+            "customers.annual_contract_value",
+            "orders.amount"
+          ],
+          "join_keys": [
+            "customers.customer_id = orders.customer_id"
+          ],
+          "filters": [
+            "customers.is_internal = 0",
+            "customers.status = 'active'",
+            "customers.annual_contract_value >= 20000",
+            "orders.order_status = 'closed'"
+          ],
+          "grain": "customer_id"
+        }
+      },
+      "data_discovery_tables_correct": true,
+      "data_discovery_columns_correct": true,
+      "data_discovery_column_precision": 0.1429,
+      "data_discovery_joins_correct": true,
+      "data_discovery_filters_correct": true,
+      "data_discovery_correct": true,
+      "expected_query": "\n        SELECT SUM(o.amount) AS revenue\n        FROM customers c\n        JOIN orders o ON c.customer_id = o.customer_id\n        WHERE c.status='active'\n          AND c.is_internal=0\n          AND c.annual_contract_value >= 20000\n          AND o.order_status='closed';\n        ",
+      "executed_query": "SELECT \n    customers.customer_id,\n    customers.customer_name,\n    customers.segment,\n    customers.region,\n    customers.status,\n    customers.annual_contract_value,\n    SUM(orders.amount) AS closed_revenue\nFROM \n    customers\nJOIN \n    orders ON customers.customer_id = orders.customer_id\nWHERE \n    customers.is_internal = 0 \n    AND customers.status = 'active' \n    AND customers.annual_contract_value >= 20000 \n    AND orders.order_status = 'closed'\nGROUP BY \n    customers.customer_id, \n    customers.customer_name, \n    customers.segment, \n    customers.region, \n    customers.status, \n    customers.annual_contract_value;",
+      "query_columns": [
+        "customer_id",
+        "customer_name",
+        "segment",
+        "region",
+        "status",
+        "annual_contract_value",
+        "closed_revenue"
+      ],
+      "query_rows": [
+        [
+          1,
+          "Acme Manufacturing",
+          "Enterprise",
+          "North America",
+          "active",
+          62000,
+          62000
+        ],
+        [
+          3,
+          "Cobalt Finance",
+          "Enterprise",
+          "Europe",
+          "active",
+          54000,
+          54000
+        ],
+        [
+          6,
+          "Futura Logistics",
+          "Mid-Market",
+          "APAC",
+          "active",
+          23000,
+          23000
+        ]
+      ],
+      "query_contract": "exact_result",
+      "query_sufficient": true,
+      "query_correct": true,
+      "query_result_precision": 0.0476,
+      "analysis_result": {
+        "analysis": "passthrough",
+        "rows": [
+          [
+            1,
+            "Acme Manufacturing",
+            "Enterprise",
+            "North America",
+            "active",
+            62000,
+            62000
+          ],
+          [
+            3,
+            "Cobalt Finance",
+            "Enterprise",
+            "Europe",
+            "active",
+            54000,
+            54000
+          ],
+          [
+            6,
+            "Futura Logistics",
+            "Mid-Market",
+            "APAC",
+            "active",
+            23000,
+            23000
+          ]
+        ]
+      },
+      "analysis_correct": true,
+      "qa_passed": true,
+      "qa_issues": [],
+      "final_answer": "The total closed revenue from strategic active customers, excluding internal accounts, is 139000. \n\nChart-ready data:\n- Total Closed Revenue: 139000\n- Number of Customers: 3",
+      "final_correct": true,
+      "completeness": 1.0,
+      "latency_sec": 9.9286,
+      "round_count": 8,
+      "query_count": 1,
+      "analysis_execution_count": 1,
+      "llm_call_count": 6,
+      "llm_calls": [
+        {
+          "agent": "task_manager",
+          "output": "{\n  \"route\": [\"metric\", \"discovery\", \"query\", \"analysis\"],\n  \"rationale\": \"The question requires a detailed analysis of closed revenue from strategic active customers, which involves post-query computation to ensure accurate exclusion of internal accounts and potentially ranking or identifying maximum values.\"\n}",
+          "token_usage": {
+            "input_tokens": 114,
+            "output_tokens": 59,
+            "total_tokens": 173,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        },
+        {
+          "agent": "metric_agent",
+          "output": "{\"metric_id\": \"high_value_active_revenue\"}",
+          "token_usage": {
+            "input_tokens": 477,
+            "output_tokens": 11,
+            "total_tokens": 488,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        },
+        {
+          "agent": "data_discovery_agent",
+          "output": "{\n  \"tables\": [\n    \"customers\",\n    \"orders\"\n  ],\n  \"columns\": [\n    \"customers.customer_id\",\n    \"customers.customer_name\",\n    \"customers.segment\",\n    \"customers.region\",\n    \"customers.status\",\n    \"customers.annual_contract_value\",\n    \"orders.amount\"\n  ],\n  \"join_keys\": [\n    \"customers.customer_id = orders.customer_id\"\n  ],\n  \"filters\": [\n    \"customers.is_internal = 0\",\n    \"customers.status = 'active'\",\n    \"customers.annual_contract_value >= 20000\",\n    \"orders.order_status = 'closed'\"\n  ],\n  \"grain\": \"customer_id\",\n  \"data_contract\": {\n    \"tables\": [\n      \"customers\",\n      \"orders\"\n    ],\n    \"columns\": [\n      \"customers.customer_id\",\n      \"customers.customer_name\",\n      \"customers.segment\",\n      \"customers.region\",\n      \"customers.status\",\n      \"customers.annual_contract_value\",\n      \"orders.amount\"\n    ],\n    \"join_keys\": [\n      \"customers.customer_id = orders.customer_id\"\n    ],\n    \"filters\": [\n      \"customers.is_internal = 0\",\n      \"customers.status = 'active'\",\n      \"customers.annual_contract_value >= 20000\",\n      \"orders.order_status = 'closed'\"\n    ],\n    \"grain\": \"customer_id\"\n  }\n}",
+          "token_usage": {
+            "input_tokens": 378,
+            "output_tokens": 276,
+            "total_tokens": 654,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        },
+        {
+          "agent": "query_agent",
+          "output": "```sql\nSELECT \n    customers.customer_id,\n    customers.customer_name,\n    customers.segment,\n    customers.region,\n    customers.status,\n    customers.annual_contract_value,\n    SUM(orders.amount) AS closed_revenue\nFROM \n    customers\nJOIN \n    orders ON customers.customer_id = orders.customer_id\nWHERE \n    customers.is_internal = 0 \n    AND customers.status = 'active' \n    AND customers.annual_contract_value >= 20000 \n    AND orders.order_status = 'closed'\nGROUP BY \n    customers.customer_id, \n    customers.customer_name, \n    customers.segment, \n    customers.region, \n    customers.status, \n    customers.annual_contract_value;\n```",
+          "token_usage": {
+            "input_tokens": 511,
+            "output_tokens": 141,
+            "total_tokens": 652,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        },
+        {
+          "agent": "qa_agent",
+          "output": "{\n  \"passed\": true,\n  \"issues\": []\n}",
+          "token_usage": {
+            "input_tokens": 788,
+            "output_tokens": 13,
+            "total_tokens": 801,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        },
+        {
+          "agent": "insight_agent",
+          "output": "The total closed revenue from strategic active customers, excluding internal accounts, is 139000. \n\nChart-ready data:\n- Total Closed Revenue: 139000\n- Number of Customers: 3",
+          "token_usage": {
+            "input_tokens": 406,
+            "output_tokens": 39,
+            "total_tokens": 445,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        }
+      ],
+      "trace": [
+        {
+          "agent": "task_manager",
+          "content": {
+            "route": [
+              "metric",
+              "discovery",
+              "query",
+              "analysis"
+            ],
+            "rationale": "The question requires a detailed analysis of closed revenue from strategic active customers, which involves post-query computation to ensure accurate exclusion of internal accounts and potentially ranking or identifying maximum values."
+          }
+        },
+        {
+          "agent": "metric_agent",
+          "content": {
+            "metric_id": "high_value_active_revenue",
+            "definition": "Total closed order revenue for active, non-internal customers whose annual contract value is at least 20000.",
+            "business_rules": [
+              "Exclude internal test accounts.",
+              "Only include customers with status = active.",
+              "High-value means annual_contract_value >= 20000.",
+              "Revenue is the sum of closed order amounts."
+            ]
+          }
+        },
+        {
+          "agent": "data_discovery_agent",
+          "content": {
+            "tables": [
+              "customers",
+              "orders"
+            ],
+            "columns": [
+              "customers.customer_id",
+              "customers.customer_name",
+              "customers.segment",
+              "customers.region",
+              "customers.status",
+              "customers.annual_contract_value",
+              "orders.amount"
+            ],
+            "join_keys": [
+              "customers.customer_id = orders.customer_id"
+            ],
+            "filters": [
+              "customers.is_internal = 0",
+              "customers.status = 'active'",
+              "customers.annual_contract_value >= 20000",
+              "orders.order_status = 'closed'"
+            ],
+            "grain": "customer_id",
+            "data_contract": {
+              "tables": [
+                "customers",
+                "orders"
+              ],
+              "columns": [
+                "customers.customer_id",
+                "customers.customer_name",
+                "customers.segment",
+                "customers.region",
+                "customers.status",
+                "customers.annual_contract_value",
+                "orders.amount"
+              ],
+              "join_keys": [
+                "customers.customer_id = orders.customer_id"
+              ],
+              "filters": [
+                "customers.is_internal = 0",
+                "customers.status = 'active'",
+                "customers.annual_contract_value >= 20000",
+                "orders.order_status = 'closed'"
+              ],
+              "grain": "customer_id"
+            }
+          }
+        },
+        {
+          "agent": "query_agent",
+          "content": {
+            "query": "SELECT \n    customers.customer_id,\n    customers.customer_name,\n    customers.segment,\n    customers.region,\n    customers.status,\n    customers.annual_contract_value,\n    SUM(orders.amount) AS closed_revenue\nFROM \n    customers\nJOIN \n    orders ON customers.customer_id = orders.customer_id\nWHERE \n    customers.is_internal = 0 \n    AND customers.status = 'active' \n    AND customers.annual_contract_value >= 20000 \n    AND orders.order_status = 'closed'\nGROUP BY \n    customers.customer_id, \n    customers.customer_name, \n    customers.segment, \n    customers.region, \n    customers.status, \n    customers.annual_contract_value;"
+          }
+        },
+        {
+          "agent": "query_executor",
+          "content": {
+            "columns": [
+              "customer_id",
+              "customer_name",
+              "segment",
+              "region",
+              "status",
+              "annual_contract_value",
+              "closed_revenue"
+            ],
+            "rows": [
+              [
+                1,
+                "Acme Manufacturing",
+                "Enterprise",
+                "North America",
+                "active",
+                62000,
+                62000
+              ],
+              [
+                3,
+                "Cobalt Finance",
+                "Enterprise",
+                "Europe",
+                "active",
+                54000,
+                54000
+              ],
+              [
+                6,
+                "Futura Logistics",
+                "Mid-Market",
+                "APAC",
+                "active",
+                23000,
+                23000
+              ]
+            ],
+            "error": null
+          }
+        },
+        {
+          "agent": "analysis_agent",
+          "content": {
+            "analysis": "passthrough",
+            "rows": [
+              [
+                1,
+                "Acme Manufacturing",
+                "Enterprise",
+                "North America",
+                "active",
+                62000,
+                62000
+              ],
+              [
+                3,
+                "Cobalt Finance",
+                "Enterprise",
+                "Europe",
+                "active",
+                54000,
+                54000
+              ],
+              [
+                6,
+                "Futura Logistics",
+                "Mid-Market",
+                "APAC",
+                "active",
+                23000,
+                23000
+              ]
+            ]
+          }
+        },
+        {
+          "agent": "qa_agent",
+          "content": {
+            "passed": true,
+            "issues": []
+          }
+        },
+        {
+          "agent": "insight_agent",
+          "content": {
+            "final_answer": "The total closed revenue from strategic active customers, excluding internal accounts, is 139000. \n\nChart-ready data:\n- Total Closed Revenue: 139000\n- Number of Customers: 3"
+          }
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "id": "at_risk_open_support",
+      "question": "Which at-risk customers currently have open high-severity support exposure?",
+      "run_question": "Which at-risk customers currently have open high-severity service risk?",
+      "expected_route": [
+        "metric",
+        "discovery",
+        "query"
+      ],
+      "planned_route": [
+        "metric",
+        "discovery",
+        "query",
+        "analysis"
+      ],
+      "route_correct": false,
+      "route_exact_match": false,
+      "route_covered": true,
+      "unnecessary_steps": [
+        "analysis"
+      ],
+      "unnecessary_step_count": 1,
+      "expected_metric": "at_risk_open_support",
+      "metric_context": {
+        "metric_id": "at_risk_open_support",
+        "definition": "Open high or critical support exposure for non-internal customers marked at risk.",
+        "business_rules": [
+          "Exclude internal test accounts.",
+          "Only include customers with status = at_risk.",
+          "Only include support tickets with status = open and severity in high or critical."
+        ]
+      },
+      "metric_correct": true,
+      "expected_tables": [
+        "customers",
+        "support_tickets"
+      ],
+      "expected_columns": [
+        "customer_name",
+        "severity",
+        "resolution_hours"
+      ],
+      "data_context": {
+        "tables": [
+          "customers",
+          "support_tickets"
+        ],
+        "columns": [
+          "customer_name",
+          "severity",
+          "resolution_hours"
+        ],
+        "join_keys": [
+          "customers.customer_id = support_tickets.customer_id"
+        ],
+        "filters": [
+          "customers.status = 'at_risk'",
+          "customers.is_internal = 0",
+          "support_tickets.ticket_status = 'open'",
+          "support_tickets.severity IN ('high', 'critical')"
+        ],
+        "grain": "one row per open high-severity support ticket",
+        "data_contract": {
+          "tables": [
+            "customers",
+            "support_tickets"
+          ],
+          "columns": [
+            "customer_name",
+            "severity",
+            "resolution_hours"
+          ],
+          "join_keys": [
+            "customers.customer_id = support_tickets.customer_id"
+          ],
+          "filters": [
+            "customers.status = 'at_risk'",
+            "customers.is_internal = 0",
+            "support_tickets.ticket_status = 'open'",
+            "support_tickets.severity IN ('high', 'critical')"
+          ],
+          "grain": "one row per open high-severity support ticket"
+        }
+      },
+      "data_discovery_tables_correct": true,
+      "data_discovery_columns_correct": true,
+      "data_discovery_column_precision": 1.0,
+      "data_discovery_joins_correct": true,
+      "data_discovery_filters_correct": true,
+      "data_discovery_correct": true,
+      "expected_query": "\n        SELECT c.customer_name, t.severity, t.resolution_hours\n        FROM customers c\n        JOIN support_tickets t ON c.customer_id = t.customer_id\n        WHERE c.status='at_risk'\n          AND c.is_internal=0\n          AND t.ticket_status='open'\n          AND t.severity IN ('high', 'critical')\n        ORDER BY t.resolution_hours DESC;\n        ",
+      "executed_query": "SELECT \n    customers.customer_name AS customer_name,\n    support_tickets.severity AS severity,\n    support_tickets.resolution_hours AS resolution_hours\nFROM \n    customers\nJOIN \n    support_tickets ON customers.customer_id = support_tickets.customer_id\nWHERE \n    customers.status = 'at_risk' \n    AND customers.is_internal = 0 \n    AND support_tickets.ticket_status = 'open' \n    AND support_tickets.severity IN ('high', 'critical');",
+      "query_columns": [
+        "customer_name",
+        "severity",
+        "resolution_hours"
+      ],
+      "query_rows": [
+        [
+          "Delta Health",
+          "critical",
+          72
+        ],
+        [
+          "Delta Health",
+          "high",
+          54
+        ]
+      ],
+      "query_contract": "exact_result",
+      "query_sufficient": true,
+      "query_correct": true,
+      "query_result_precision": 1.0,
+      "analysis_result": {
+        "analysis": "passthrough",
+        "rows": [
+          [
+            "Delta Health",
+            "critical",
+            72
+          ],
+          [
+            "Delta Health",
+            "high",
+            54
+          ]
+        ]
+      },
+      "analysis_correct": true,
+      "qa_passed": true,
+      "qa_issues": [],
+      "final_answer": "The at-risk customer currently with open high-severity service risk is:\n\n- Customer Name: Delta Health\n  - Severity: critical\n    - Resolution Hours: 72\n  - Severity: high\n    - Resolution Hours: 54\n\nThis data can be summarized as chart-ready data.",
+      "final_correct": true,
+      "completeness": 1.0,
+      "latency_sec": 25.1636,
+      "round_count": 8,
+      "query_count": 1,
+      "analysis_execution_count": 1,
+      "llm_call_count": 6,
+      "llm_calls": [
+        {
+          "agent": "task_manager",
+          "output": "{\n  \"route\": [\"metric\", \"discovery\", \"query\", \"analysis\"],\n  \"rationale\": \"The question requires identifying at-risk customers with specific service risks, which involves ranking and potentially computing metrics related to severity. This necessitates an analysis step to provide chart-ready output and insights.\"\n}",
+          "token_usage": {
+            "input_tokens": 112,
+            "output_tokens": 62,
+            "total_tokens": 174,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        },
+        {
+          "agent": "metric_agent",
+          "output": "{\"metric_id\": \"at_risk_open_support\"}",
+          "token_usage": {
+            "input_tokens": 475,
+            "output_tokens": 11,
+            "total_tokens": 486,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        },
+        {
+          "agent": "data_discovery_agent",
+          "output": "{\n  \"tables\": [\n    \"customers\",\n    \"support_tickets\"\n  ],\n  \"columns\": [\n    \"customers.customer_id\",\n    \"customers.customer_name\",\n    \"customers.status\",\n    \"support_tickets.ticket_id\",\n    \"support_tickets.severity\",\n    \"support_tickets.ticket_status\"\n  ],\n  \"join_keys\": [\n    \"customers.customer_id = support_tickets.customer_id\"\n  ],\n  \"filters\": [\n    \"customers.is_internal = 0\",\n    \"customers.status = 'at_risk'\",\n    \"support_tickets.ticket_status = 'open'\",\n    \"support_tickets.severity IN ('high', 'critical')\"\n  ],\n  \"grain\": \"support_tickets.ticket_id\",\n  \"data_contract\": {\n    \"tables\": [\n      \"customers\",\n      \"support_tickets\"\n    ],\n    \"columns\": [\n      \"customers.customer_id\",\n      \"customers.customer_name\",\n      \"customers.status\",\n      \"support_tickets.ticket_id\",\n      \"support_tickets.severity\",\n      \"support_tickets.ticket_status\"\n    ],\n    \"join_keys\": [\n      \"customers.customer_id = support_tickets.customer_id\"\n    ],\n    \"filters\": [\n      \"customers.is_internal = 0\",\n      \"customers.status = 'at_risk'\",\n      \"support_tickets.ticket_status = 'open'\",\n      \"support_tickets.severity IN ('high', 'critical')\"\n    ],\n    \"grain\": \"support_tickets.ticket_id\"\n  }\n}",
+          "token_usage": {
+            "input_tokens": 367,
+            "output_tokens": 306,
+            "total_tokens": 673,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        },
+        {
+          "agent": "query_agent",
+          "output": "```sql\nSELECT \n    customers.customer_name AS customer_name,\n    support_tickets.severity AS severity,\n    support_tickets.resolution_hours AS resolution_hours\nFROM \n    customers\nJOIN \n    support_tickets ON customers.customer_id = support_tickets.customer_id\nWHERE \n    customers.status = 'at_risk' \n    AND customers.is_internal = 0 \n    AND support_tickets.ticket_status = 'open' \n    AND support_tickets.severity IN ('high', 'critical');\n```",
+          "token_usage": {
+            "input_tokens": 490,
+            "output_tokens": 103,
+            "total_tokens": 593,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        },
+        {
+          "agent": "qa_agent",
+          "output": "{\n  \"passed\": true,\n  \"issues\": []\n}",
+          "token_usage": {
+            "input_tokens": 599,
+            "output_tokens": 13,
+            "total_tokens": 612,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        },
+        {
+          "agent": "insight_agent",
+          "output": "The at-risk customer currently with open high-severity service risk is:\n\n- Customer Name: Delta Health\n  - Severity: critical\n    - Resolution Hours: 72\n  - Severity: high\n    - Resolution Hours: 54\n\nThis data can be summarized as chart-ready data.",
+          "token_usage": {
+            "input_tokens": 260,
+            "output_tokens": 59,
+            "total_tokens": 319,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        }
+      ],
+      "trace": [
+        {
+          "agent": "task_manager",
+          "content": {
+            "route": [
+              "metric",
+              "discovery",
+              "query",
+              "analysis"
+            ],
+            "rationale": "The question requires identifying at-risk customers with specific service risks, which involves ranking and potentially computing metrics related to severity. This necessitates an analysis step to provide chart-ready output and insights."
+          }
+        },
+        {
+          "agent": "metric_agent",
+          "content": {
+            "metric_id": "at_risk_open_support",
+            "definition": "Open high or critical support exposure for non-internal customers marked at risk.",
+            "business_rules": [
+              "Exclude internal test accounts.",
+              "Only include customers with status = at_risk.",
+              "Only include support tickets with status = open and severity in high or critical."
+            ]
+          }
+        },
+        {
+          "agent": "data_discovery_agent",
+          "content": {
+            "tables": [
+              "customers",
+              "support_tickets"
+            ],
+            "columns": [
+              "customer_name",
+              "severity",
+              "resolution_hours"
+            ],
+            "join_keys": [
+              "customers.customer_id = support_tickets.customer_id"
+            ],
+            "filters": [
+              "customers.status = 'at_risk'",
+              "customers.is_internal = 0",
+              "support_tickets.ticket_status = 'open'",
+              "support_tickets.severity IN ('high', 'critical')"
+            ],
+            "grain": "one row per open high-severity support ticket",
+            "data_contract": {
+              "tables": [
+                "customers",
+                "support_tickets"
+              ],
+              "columns": [
+                "customer_name",
+                "severity",
+                "resolution_hours"
+              ],
+              "join_keys": [
+                "customers.customer_id = support_tickets.customer_id"
+              ],
+              "filters": [
+                "customers.status = 'at_risk'",
+                "customers.is_internal = 0",
+                "support_tickets.ticket_status = 'open'",
+                "support_tickets.severity IN ('high', 'critical')"
+              ],
+              "grain": "one row per open high-severity support ticket"
+            }
+          }
+        },
+        {
+          "agent": "query_agent",
+          "content": {
+            "query": "SELECT \n    customers.customer_name AS customer_name,\n    support_tickets.severity AS severity,\n    support_tickets.resolution_hours AS resolution_hours\nFROM \n    customers\nJOIN \n    support_tickets ON customers.customer_id = support_tickets.customer_id\nWHERE \n    customers.status = 'at_risk' \n    AND customers.is_internal = 0 \n    AND support_tickets.ticket_status = 'open' \n    AND support_tickets.severity IN ('high', 'critical');"
+          }
+        },
+        {
+          "agent": "query_executor",
+          "content": {
+            "columns": [
+              "customer_name",
+              "severity",
+              "resolution_hours"
+            ],
+            "rows": [
+              [
+                "Delta Health",
+                "critical",
+                72
+              ],
+              [
+                "Delta Health",
+                "high",
+                54
+              ]
+            ],
+            "error": null
+          }
+        },
+        {
+          "agent": "analysis_agent",
+          "content": {
+            "analysis": "passthrough",
+            "rows": [
+              [
+                "Delta Health",
+                "critical",
+                72
+              ],
+              [
+                "Delta Health",
+                "high",
+                54
+              ]
+            ]
+          }
+        },
+        {
+          "agent": "qa_agent",
+          "content": {
+            "passed": true,
+            "issues": []
+          }
+        },
+        {
+          "agent": "insight_agent",
+          "content": {
+            "final_answer": "The at-risk customer currently with open high-severity service risk is:\n\n- Customer Name: Delta Health\n  - Severity: critical\n    - Resolution Hours: 72\n  - Severity: high\n    - Resolution Hours: 54\n\nThis data can be summarized as chart-ready data."
+          }
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "id": "manager_revenue_concentration",
+      "question": "Show closed revenue by account manager and identify the manager with the highest concentration.",
+      "run_question": "Show closed revenue by account owner and identify the manager with the highest concentration.",
+      "expected_route": [
+        "metric",
+        "discovery",
+        "query",
+        "analysis"
+      ],
+      "planned_route": [
+        "metric",
+        "discovery",
+        "query",
+        "analysis"
+      ],
+      "route_correct": true,
+      "route_exact_match": true,
+      "route_covered": true,
+      "unnecessary_steps": [],
+      "unnecessary_step_count": 0,
+      "expected_metric": "manager_revenue_concentration",
+      "metric_context": {
+        "metric_id": "manager_revenue_concentration",
+        "definition": "Closed revenue by account manager, excluding internal accounts.",
+        "business_rules": [
+          "Exclude internal test accounts.",
+          "Revenue is the sum of closed order amounts.",
+          "Group customers by account manager."
+        ]
+      },
+      "metric_correct": true,
+      "expected_tables": [
+        "customers",
+        "orders",
+        "account_managers"
+      ],
+      "expected_columns": [
+        "manager_name",
+        "amount"
+      ],
+      "data_context": {
+        "tables": [
+          "customers",
+          "orders",
+          "account_managers"
+        ],
+        "columns": [
+          "account_managers.manager_name",
+          "customers.customer_id",
+          "customers.customer_name",
+          "orders.amount"
+        ],
+        "join_keys": [
+          "customers.customer_id = orders.customer_id",
+          "customers.customer_id = account_managers.customer_id"
+        ],
+        "filters": [
+          "customers.is_internal = 0",
+          "orders.order_status = 'closed'"
+        ],
+        "grain": "account_manager",
+        "data_contract": {
+          "tables": [
+            "customers",
+            "orders",
+            "account_managers"
+          ],
+          "columns": [
+            "account_managers.manager_name",
+            "customers.customer_id",
+            "customers.customer_name",
+            "orders.amount"
+          ],
+          "join_keys": [
+            "customers.customer_id = orders.customer_id",
+            "customers.customer_id = account_managers.customer_id"
+          ],
+          "filters": [
+            "customers.is_internal = 0",
+            "orders.order_status = 'closed'"
+          ],
+          "grain": "account_manager"
+        }
+      },
+      "data_discovery_tables_correct": true,
+      "data_discovery_columns_correct": true,
+      "data_discovery_column_precision": 0.5,
+      "data_discovery_joins_correct": true,
+      "data_discovery_filters_correct": true,
+      "data_discovery_correct": true,
+      "expected_query": "\n        SELECT am.manager_name, o.amount\n        FROM customers c\n        JOIN orders o ON c.customer_id = o.customer_id\n        JOIN account_managers am ON c.customer_id = am.customer_id\n        WHERE c.is_internal=0\n          AND o.order_status='closed';\n        ",
+      "executed_query": "SELECT \n    am.manager_name AS account_manager,\n    c.customer_id AS customer_id,\n    c.customer_name AS customer_name,\n    SUM(o.amount) AS closed_revenue\nFROM \n    customers c\nJOIN \n    orders o ON c.customer_id = o.customer_id\nJOIN \n    account_managers am ON c.customer_id = am.customer_id\nWHERE \n    c.is_internal = 0 \n    AND o.order_status = 'closed'\nGROUP BY \n    am.manager_name, c.customer_id, c.customer_name;",
+      "query_columns": [
+        "account_manager",
+        "customer_id",
+        "customer_name",
+        "closed_revenue"
+      ],
+      "query_rows": [
+        [
+          "Aiko Tanaka",
+          6,
+          "Futura Logistics",
+          23000
+        ],
+        [
+          "Aiko Tanaka",
+          8,
+          "Helios Energy",
+          42000
+        ],
+        [
+          "Lena Ortiz",
+          4,
+          "Delta Health",
+          47000
+        ],
+        [
+          "Maya Chen",
+          1,
+          "Acme Manufacturing",
+          62000
+        ],
+        [
+          "Maya Chen",
+          3,
+          "Cobalt Finance",
+          54000
+        ],
+        [
+          "Noah Patel",
+          2,
+          "Bright Retail",
+          18000
+        ],
+        [
+          "Noah Patel",
+          5,
+          "Evergreen Foods",
+          9000
+        ]
+      ],
+      "query_contract": "aggregate_allowed",
+      "query_sufficient": true,
+      "query_correct": true,
+      "query_result_precision": 0.5,
+      "analysis_result": {
+        "analysis": "group_sum_max",
+        "label": "Maya Chen",
+        "value": 116000,
+        "all_values": {
+          "Aiko Tanaka": 65000,
+          "Lena Ortiz": 47000,
+          "Maya Chen": 116000,
+          "Noah Patel": 27000
+        }
+      },
+      "analysis_correct": true,
+      "qa_passed": false,
+      "qa_issues": [
+        {
+          "issue": "Inconsistent revenue calculation",
+          "description": "The analysis result shows that Maya Chen has a total closed revenue of 116000, which is the sum of 62000 and 54000 from the query. However, the query output for Maya Chen shows a total of 116000, which is correct. The issue arises because the total for Aiko Tanaka is reported as 65000, but the query output shows 23000 + 42000 = 65000, which is consistent. However, the analysis does not reflect the correct grouping as it should only sum the closed revenue per account manager, not include customer IDs in the grouping."
+        },
+        {
+          "issue": "Group by clause includes unnecessary columns",
+          "description": "The query groups by 'c.customer_id' and 'c.customer_name', which is not aligned with the metric definition that states to group customers by account manager only. This could lead to inflated revenue figures if multiple customers are associated with the same account manager."
+        }
+      ],
+      "final_answer": "Unable to produce a trusted answer. QA issues: [{'issue': 'Inconsistent revenue calculation', 'description': 'The analysis result shows that Maya Chen has a total closed revenue of 116000, which is the sum of 62000 and 54000 from the query. However, the query output for Maya Chen shows a total of 116000, which is correct. The issue arises because the total for Aiko Tanaka is reported as 65000, but the query output shows 23000 + 42000 = 65000, which is consistent. However, the analysis does not reflect the correct grouping as it should only sum the closed revenue per account manager, not include customer IDs in the grouping.'}, {'issue': 'Group by clause includes unnecessary columns', 'description': \"The query groups by 'c.customer_id' and 'c.customer_name', which is not aligned with the metric definition that states to group customers by account manager only. This could lead to inflated revenue figures if multiple customers are associated with the same account manager.\"}]",
+      "final_correct": true,
+      "completeness": 1.0,
+      "latency_sec": 19.5162,
+      "round_count": 8,
+      "query_count": 1,
+      "analysis_execution_count": 1,
+      "llm_call_count": 5,
+      "llm_calls": [
+        {
+          "agent": "task_manager",
+          "output": "{\n  \"route\": [\"metric\", \"discovery\", \"query\", \"analysis\"],\n  \"rationale\": \"The task requires chart-ready output to show closed revenue by account owner and to identify the manager with the highest concentration, which necessitates post-query computation and analysis.\"\n}",
+          "token_usage": {
+            "input_tokens": 114,
+            "output_tokens": 57,
+            "total_tokens": 171,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        },
+        {
+          "agent": "metric_agent",
+          "output": "{\"metric_id\": \"manager_revenue_concentration\"}",
+          "token_usage": {
+            "input_tokens": 477,
+            "output_tokens": 11,
+            "total_tokens": 488,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        },
+        {
+          "agent": "data_discovery_agent",
+          "output": "{\n  \"tables\": [\n    \"customers\",\n    \"orders\",\n    \"account_managers\"\n  ],\n  \"columns\": [\n    \"account_managers.manager_name\",\n    \"customers.customer_id\",\n    \"customers.customer_name\",\n    \"orders.amount\"\n  ],\n  \"join_keys\": [\n    \"customers.customer_id = orders.customer_id\",\n    \"customers.customer_id = account_managers.customer_id\"\n  ],\n  \"filters\": [\n    \"customers.is_internal = 0\",\n    \"orders.order_status = 'closed'\"\n  ],\n  \"grain\": \"account_manager\",\n  \"data_contract\": {\n    \"tables\": [\n      \"customers\",\n      \"orders\",\n      \"account_managers\"\n    ],\n    \"columns\": [\n      \"account_managers.manager_name\",\n      \"customers.customer_id\",\n      \"customers.customer_name\",\n      \"orders.amount\"\n    ],\n    \"join_keys\": [\n      \"customers.customer_id = orders.customer_id\",\n      \"customers.customer_id = account_managers.customer_id\"\n    ],\n    \"filters\": [\n      \"customers.is_internal = 0\",\n      \"orders.order_status = 'closed'\"\n    ],\n    \"grain\": \"account_manager\"\n  }\n}",
+          "token_usage": {
+            "input_tokens": 352,
+            "output_tokens": 242,
+            "total_tokens": 594,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        },
+        {
+          "agent": "query_agent",
+          "output": "```sql\nSELECT \n    am.manager_name AS account_manager,\n    c.customer_id AS customer_id,\n    c.customer_name AS customer_name,\n    SUM(o.amount) AS closed_revenue\nFROM \n    customers c\nJOIN \n    orders o ON c.customer_id = o.customer_id\nJOIN \n    account_managers am ON c.customer_id = am.customer_id\nWHERE \n    c.is_internal = 0 \n    AND o.order_status = 'closed'\nGROUP BY \n    am.manager_name, c.customer_id, c.customer_name;\n```",
+          "token_usage": {
+            "input_tokens": 457,
+            "output_tokens": 111,
+            "total_tokens": 568,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        },
+        {
+          "agent": "qa_agent",
+          "output": "{\n  \"passed\": false,\n  \"issues\": [\n    {\n      \"issue\": \"Inconsistent revenue calculation\",\n      \"description\": \"The analysis result shows that Maya Chen has a total closed revenue of 116000, which is the sum of 62000 and 54000 from the query. However, the query output for Maya Chen shows a total of 116000, which is correct. The issue arises because the total for Aiko Tanaka is reported as 65000, but the query output shows 23000 + 42000 = 65000, which is consistent. However, the analysis does not reflect the correct grouping as it should only sum the closed revenue per account manager, not include customer IDs in the grouping.\"\n    },\n    {\n      \"issue\": \"Group by clause includes unnecessary columns\",\n      \"description\": \"The query groups by 'c.customer_id' and 'c.customer_name', which is not aligned with the metric definition that states to group customers by account manager only. This could lead to inflated revenue figures if multiple customers are associated with the same account manager.\"\n    }\n  ]\n}",
+          "token_usage": {
+            "input_tokens": 706,
+            "output_tokens": 228,
+            "total_tokens": 934,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        }
+      ],
+      "trace": [
+        {
+          "agent": "task_manager",
+          "content": {
+            "route": [
+              "metric",
+              "discovery",
+              "query",
+              "analysis"
+            ],
+            "rationale": "The task requires chart-ready output to show closed revenue by account owner and to identify the manager with the highest concentration, which necessitates post-query computation and analysis."
+          }
+        },
+        {
+          "agent": "metric_agent",
+          "content": {
+            "metric_id": "manager_revenue_concentration",
+            "definition": "Closed revenue by account manager, excluding internal accounts.",
+            "business_rules": [
+              "Exclude internal test accounts.",
+              "Revenue is the sum of closed order amounts.",
+              "Group customers by account manager."
+            ]
+          }
+        },
+        {
+          "agent": "data_discovery_agent",
+          "content": {
+            "tables": [
+              "customers",
+              "orders",
+              "account_managers"
+            ],
+            "columns": [
+              "account_managers.manager_name",
+              "customers.customer_id",
+              "customers.customer_name",
+              "orders.amount"
+            ],
+            "join_keys": [
+              "customers.customer_id = orders.customer_id",
+              "customers.customer_id = account_managers.customer_id"
+            ],
+            "filters": [
+              "customers.is_internal = 0",
+              "orders.order_status = 'closed'"
+            ],
+            "grain": "account_manager",
+            "data_contract": {
+              "tables": [
+                "customers",
+                "orders",
+                "account_managers"
+              ],
+              "columns": [
+                "account_managers.manager_name",
+                "customers.customer_id",
+                "customers.customer_name",
+                "orders.amount"
+              ],
+              "join_keys": [
+                "customers.customer_id = orders.customer_id",
+                "customers.customer_id = account_managers.customer_id"
+              ],
+              "filters": [
+                "customers.is_internal = 0",
+                "orders.order_status = 'closed'"
+              ],
+              "grain": "account_manager"
+            }
+          }
+        },
+        {
+          "agent": "query_agent",
+          "content": {
+            "query": "SELECT \n    am.manager_name AS account_manager,\n    c.customer_id AS customer_id,\n    c.customer_name AS customer_name,\n    SUM(o.amount) AS closed_revenue\nFROM \n    customers c\nJOIN \n    orders o ON c.customer_id = o.customer_id\nJOIN \n    account_managers am ON c.customer_id = am.customer_id\nWHERE \n    c.is_internal = 0 \n    AND o.order_status = 'closed'\nGROUP BY \n    am.manager_name, c.customer_id, c.customer_name;"
+          }
+        },
+        {
+          "agent": "query_executor",
+          "content": {
+            "columns": [
+              "account_manager",
+              "customer_id",
+              "customer_name",
+              "closed_revenue"
+            ],
+            "rows": [
+              [
+                "Aiko Tanaka",
+                6,
+                "Futura Logistics",
+                23000
+              ],
+              [
+                "Aiko Tanaka",
+                8,
+                "Helios Energy",
+                42000
+              ],
+              [
+                "Lena Ortiz",
+                4,
+                "Delta Health",
+                47000
+              ],
+              [
+                "Maya Chen",
+                1,
+                "Acme Manufacturing",
+                62000
+              ],
+              [
+                "Maya Chen",
+                3,
+                "Cobalt Finance",
+                54000
+              ],
+              [
+                "Noah Patel",
+                2,
+                "Bright Retail",
+                18000
+              ],
+              [
+                "Noah Patel",
+                5,
+                "Evergreen Foods",
+                9000
+              ]
+            ],
+            "error": null
+          }
+        },
+        {
+          "agent": "analysis_agent",
+          "content": {
+            "analysis": "group_sum_max",
+            "label": "Maya Chen",
+            "value": 116000,
+            "all_values": {
+              "Aiko Tanaka": 65000,
+              "Lena Ortiz": 47000,
+              "Maya Chen": 116000,
+              "Noah Patel": 27000
+            }
+          }
+        },
+        {
+          "agent": "qa_agent",
+          "content": {
+            "passed": false,
+            "issues": [
+              {
+                "issue": "Inconsistent revenue calculation",
+                "description": "The analysis result shows that Maya Chen has a total closed revenue of 116000, which is the sum of 62000 and 54000 from the query. However, the query output for Maya Chen shows a total of 116000, which is correct. The issue arises because the total for Aiko Tanaka is reported as 65000, but the query output shows 23000 + 42000 = 65000, which is consistent. However, the analysis does not reflect the correct grouping as it should only sum the closed revenue per account manager, not include customer IDs in the grouping."
+              },
+              {
+                "issue": "Group by clause includes unnecessary columns",
+                "description": "The query groups by 'c.customer_id' and 'c.customer_name', which is not aligned with the metric definition that states to group customers by account manager only. This could lead to inflated revenue figures if multiple customers are associated with the same account manager."
+              }
+            ]
+          }
+        },
+        {
+          "agent": "insight_agent",
+          "content": {
+            "final_answer": "Unable to produce a trusted answer. QA issues: [{'issue': 'Inconsistent revenue calculation', 'description': 'The analysis result shows that Maya Chen has a total closed revenue of 116000, which is the sum of 62000 and 54000 from the query. However, the query output for Maya Chen shows a total of 116000, which is correct. The issue arises because the total for Aiko Tanaka is reported as 65000, but the query output shows 23000 + 42000 = 65000, which is consistent. However, the analysis does not reflect the correct grouping as it should only sum the closed revenue per account manager, not include customer IDs in the grouping.'}, {'issue': 'Group by clause includes unnecessary columns', 'description': \"The query groups by 'c.customer_id' and 'c.customer_name', which is not aligned with the metric definition that states to group customers by account manager only. This could lead to inflated revenue figures if multiple customers are associated with the same account manager.\"}]"
+          }
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "id": "regional_active_revenue_chart",
+      "question": "Prepare chart-ready data for closed revenue by region among active customers.",
+      "run_question": "Prepare chart-ready data for closed revenue by region among currently live customers.",
+      "expected_route": [
+        "metric",
+        "discovery",
+        "query",
+        "analysis"
+      ],
+      "planned_route": [
+        "metric",
+        "discovery",
+        "query",
+        "analysis"
+      ],
+      "route_correct": true,
+      "route_exact_match": true,
+      "route_covered": true,
+      "unnecessary_steps": [],
+      "unnecessary_step_count": 0,
+      "expected_metric": "regional_active_customer_revenue",
+      "metric_context": {
+        "metric_id": "regional_active_customer_revenue",
+        "definition": "Closed revenue by region for active, non-internal customers.",
+        "business_rules": [
+          "Exclude internal test accounts.",
+          "Only include customers with status = active.",
+          "Revenue is the sum of closed order amounts grouped by region."
+        ]
+      },
+      "metric_correct": true,
+      "expected_tables": [
+        "customers",
+        "orders"
+      ],
+      "expected_columns": [
+        "region",
+        "amount"
+      ],
+      "data_context": {
+        "tables": [
+          "customers",
+          "orders"
+        ],
+        "columns": [
+          "region",
+          "amount"
+        ],
+        "join_keys": [
+          "customers.customer_id = orders.customer_id"
+        ],
+        "filters": [
+          "customers.status = 'active'",
+          "customers.is_internal = 0",
+          "orders.order_status = 'closed'"
+        ],
+        "grain": "one row per qualifying closed order grouped by customer region",
+        "data_contract": {
+          "tables": [
+            "customers",
+            "orders"
+          ],
+          "columns": [
+            "region",
+            "amount"
+          ],
+          "join_keys": [
+            "customers.customer_id = orders.customer_id"
+          ],
+          "filters": [
+            "customers.status = 'active'",
+            "customers.is_internal = 0",
+            "orders.order_status = 'closed'"
+          ],
+          "grain": "one row per qualifying closed order grouped by customer region"
+        }
+      },
+      "data_discovery_tables_correct": true,
+      "data_discovery_columns_correct": true,
+      "data_discovery_column_precision": 1.0,
+      "data_discovery_joins_correct": true,
+      "data_discovery_filters_correct": true,
+      "data_discovery_correct": true,
+      "expected_query": "\n        SELECT c.region, o.amount\n        FROM customers c\n        JOIN orders o ON c.customer_id = o.customer_id\n        WHERE c.status='active'\n          AND c.is_internal=0\n          AND o.order_status='closed';\n        ",
+      "executed_query": "SELECT \n    c.region, \n    SUM(o.amount) AS closed_revenue\nFROM \n    customers c\nJOIN \n    orders o ON c.customer_id = o.customer_id\nWHERE \n    c.status = 'active' \n    AND c.is_internal = 0 \n    AND o.order_status = 'closed'\nGROUP BY \n    c.region;",
+      "query_columns": [
+        "region",
+        "closed_revenue"
+      ],
+      "query_rows": [
+        [
+          "APAC",
+          23000
+        ],
+        [
+          "Europe",
+          54000
+        ],
+        [
+          "North America",
+          89000
+        ]
+      ],
+      "query_contract": "aggregate_allowed",
+      "query_sufficient": true,
+      "query_correct": true,
+      "query_result_precision": 1.0,
+      "analysis_result": {
+        "analysis": "group_sum_chart",
+        "chart_type": "bar",
+        "rows": [
+          [
+            "APAC",
+            23000
+          ],
+          [
+            "Europe",
+            54000
+          ],
+          [
+            "North America",
+            89000
+          ]
+        ]
+      },
+      "analysis_correct": true,
+      "qa_passed": true,
+      "qa_issues": [],
+      "final_answer": "The chart-ready data for closed revenue by region among currently live customers is as follows:\n\n- Region: APAC, Closed Revenue: 23000\n- Region: Europe, Closed Revenue: 54000\n- Region: North America, Closed Revenue: 89000\n\nThis data is suitable for a bar chart.",
+      "final_correct": true,
+      "completeness": 1.0,
+      "latency_sec": 8.9528,
+      "round_count": 8,
+      "query_count": 1,
+      "analysis_execution_count": 1,
+      "llm_call_count": 6,
+      "llm_calls": [
+        {
+          "agent": "task_manager",
+          "output": "{\n  \"route\": [\"metric\", \"discovery\", \"query\", \"analysis\"],\n  \"rationale\": \"The task requires chart-ready output for closed revenue by region, which involves post-query computation and potentially ranking or identifying maximum values. Therefore, the analysis route is necessary.\"\n}",
+          "token_usage": {
+            "input_tokens": 113,
+            "output_tokens": 58,
+            "total_tokens": 171,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        },
+        {
+          "agent": "metric_agent",
+          "output": "{\"metric_id\": \"regional_active_customer_revenue\"}",
+          "token_usage": {
+            "input_tokens": 476,
+            "output_tokens": 11,
+            "total_tokens": 487,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        },
+        {
+          "agent": "data_discovery_agent",
+          "output": "{\n  \"tables\": [\n    \"customers\",\n    \"orders\"\n  ],\n  \"columns\": [\n    \"customers.region\",\n    \"customers.customer_id\",\n    \"customers.status\",\n    \"orders.amount\"\n  ],\n  \"join_keys\": [\n    \"customers.customer_id = orders.customer_id\"\n  ],\n  \"filters\": [\n    \"customers.is_internal = 0\",\n    \"customers.status = 'active'\"\n  ],\n  \"grain\": \"region, customer_id\",\n  \"data_contract\": {\n    \"tables\": [\n      \"customers\",\n      \"orders\"\n    ],\n    \"columns\": [\n      \"customers.region\",\n      \"customers.customer_id\",\n      \"customers.status\",\n      \"orders.amount\"\n    ],\n    \"join_keys\": [\n      \"customers.customer_id = orders.customer_id\"\n    ],\n    \"filters\": [\n      \"customers.is_internal = 0\",\n      \"customers.status = 'active'\"\n    ],\n    \"grain\": \"region, customer_id\"\n  }\n}",
+          "token_usage": {
+            "input_tokens": 359,
+            "output_tokens": 200,
+            "total_tokens": 559,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        },
+        {
+          "agent": "query_agent",
+          "output": "```sql\nSELECT \n    c.region, \n    SUM(o.amount) AS closed_revenue\nFROM \n    customers c\nJOIN \n    orders o ON c.customer_id = o.customer_id\nWHERE \n    c.status = 'active' \n    AND c.is_internal = 0 \n    AND o.order_status = 'closed'\nGROUP BY \n    c.region;\n```",
+          "token_usage": {
+            "input_tokens": 432,
+            "output_tokens": 76,
+            "total_tokens": 508,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        },
+        {
+          "agent": "qa_agent",
+          "output": "{\n  \"passed\": true,\n  \"issues\": []\n}",
+          "token_usage": {
+            "input_tokens": 520,
+            "output_tokens": 13,
+            "total_tokens": 533,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        },
+        {
+          "agent": "insight_agent",
+          "output": "The chart-ready data for closed revenue by region among currently live customers is as follows:\n\n- Region: APAC, Closed Revenue: 23000\n- Region: Europe, Closed Revenue: 54000\n- Region: North America, Closed Revenue: 89000\n\nThis data is suitable for a bar chart.",
+          "token_usage": {
+            "input_tokens": 263,
+            "output_tokens": 64,
+            "total_tokens": 327,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        }
+      ],
+      "trace": [
+        {
+          "agent": "task_manager",
+          "content": {
+            "route": [
+              "metric",
+              "discovery",
+              "query",
+              "analysis"
+            ],
+            "rationale": "The task requires chart-ready output for closed revenue by region, which involves post-query computation and potentially ranking or identifying maximum values. Therefore, the analysis route is necessary."
+          }
+        },
+        {
+          "agent": "metric_agent",
+          "content": {
+            "metric_id": "regional_active_customer_revenue",
+            "definition": "Closed revenue by region for active, non-internal customers.",
+            "business_rules": [
+              "Exclude internal test accounts.",
+              "Only include customers with status = active.",
+              "Revenue is the sum of closed order amounts grouped by region."
+            ]
+          }
+        },
+        {
+          "agent": "data_discovery_agent",
+          "content": {
+            "tables": [
+              "customers",
+              "orders"
+            ],
+            "columns": [
+              "region",
+              "amount"
+            ],
+            "join_keys": [
+              "customers.customer_id = orders.customer_id"
+            ],
+            "filters": [
+              "customers.status = 'active'",
+              "customers.is_internal = 0",
+              "orders.order_status = 'closed'"
+            ],
+            "grain": "one row per qualifying closed order grouped by customer region",
+            "data_contract": {
+              "tables": [
+                "customers",
+                "orders"
+              ],
+              "columns": [
+                "region",
+                "amount"
+              ],
+              "join_keys": [
+                "customers.customer_id = orders.customer_id"
+              ],
+              "filters": [
+                "customers.status = 'active'",
+                "customers.is_internal = 0",
+                "orders.order_status = 'closed'"
+              ],
+              "grain": "one row per qualifying closed order grouped by customer region"
+            }
+          }
+        },
+        {
+          "agent": "query_agent",
+          "content": {
+            "query": "SELECT \n    c.region, \n    SUM(o.amount) AS closed_revenue\nFROM \n    customers c\nJOIN \n    orders o ON c.customer_id = o.customer_id\nWHERE \n    c.status = 'active' \n    AND c.is_internal = 0 \n    AND o.order_status = 'closed'\nGROUP BY \n    c.region;"
+          }
+        },
+        {
+          "agent": "query_executor",
+          "content": {
+            "columns": [
+              "region",
+              "closed_revenue"
+            ],
+            "rows": [
+              [
+                "APAC",
+                23000
+              ],
+              [
+                "Europe",
+                54000
+              ],
+              [
+                "North America",
+                89000
+              ]
+            ],
+            "error": null
+          }
+        },
+        {
+          "agent": "analysis_agent",
+          "content": {
+            "analysis": "group_sum_chart",
+            "chart_type": "bar",
+            "rows": [
+              [
+                "APAC",
+                23000
+              ],
+              [
+                "Europe",
+                54000
+              ],
+              [
+                "North America",
+                89000
+              ]
+            ]
+          }
+        },
+        {
+          "agent": "qa_agent",
+          "content": {
+            "passed": true,
+            "issues": []
+          }
+        },
+        {
+          "agent": "insight_agent",
+          "content": {
+            "final_answer": "The chart-ready data for closed revenue by region among currently live customers is as follows:\n\n- Region: APAC, Closed Revenue: 23000\n- Region: Europe, Closed Revenue: 54000\n- Region: North America, Closed Revenue: 89000\n\nThis data is suitable for a bar chart."
+          }
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "id": "segment_active_revenue_mix",
+      "question": "Prepare chart-ready data for closed revenue by customer segment among active customers.",
+      "run_question": "Prepare chart-ready data for closed revenue by customer segment among currently live customers.",
+      "expected_route": [
+        "metric",
+        "discovery",
+        "query",
+        "analysis"
+      ],
+      "planned_route": [
+        "metric",
+        "discovery",
+        "query",
+        "analysis"
+      ],
+      "route_correct": true,
+      "route_exact_match": true,
+      "route_covered": true,
+      "unnecessary_steps": [],
+      "unnecessary_step_count": 0,
+      "expected_metric": "segment_active_revenue_mix",
+      "metric_context": {
+        "metric_id": "segment_active_revenue_mix",
+        "definition": "Closed revenue by customer segment for active, non-internal customers.",
+        "business_rules": [
+          "Exclude internal test accounts.",
+          "Only include customers with status = active.",
+          "Revenue is the sum of closed order amounts grouped by segment."
+        ]
+      },
+      "metric_correct": true,
+      "expected_tables": [
+        "customers",
+        "orders"
+      ],
+      "expected_columns": [
+        "segment",
+        "amount"
+      ],
+      "data_context": {
+        "tables": [
+          "customers",
+          "orders"
+        ],
+        "columns": [
+          "segment",
+          "amount"
+        ],
+        "join_keys": [
+          "customers.customer_id = orders.customer_id"
+        ],
+        "filters": [
+          "customers.status = 'active'",
+          "customers.is_internal = 0",
+          "orders.order_status = 'closed'"
+        ],
+        "grain": "one row per qualifying closed order grouped by customer segment",
+        "data_contract": {
+          "tables": [
+            "customers",
+            "orders"
+          ],
+          "columns": [
+            "segment",
+            "amount"
+          ],
+          "join_keys": [
+            "customers.customer_id = orders.customer_id"
+          ],
+          "filters": [
+            "customers.status = 'active'",
+            "customers.is_internal = 0",
+            "orders.order_status = 'closed'"
+          ],
+          "grain": "one row per qualifying closed order grouped by customer segment"
+        }
+      },
+      "data_discovery_tables_correct": true,
+      "data_discovery_columns_correct": true,
+      "data_discovery_column_precision": 1.0,
+      "data_discovery_joins_correct": true,
+      "data_discovery_filters_correct": true,
+      "data_discovery_correct": true,
+      "expected_query": "\n        SELECT c.segment, o.amount\n        FROM customers c\n        JOIN orders o ON c.customer_id = o.customer_id\n        WHERE c.status='active'\n          AND c.is_internal=0\n          AND o.order_status='closed';\n        ",
+      "executed_query": "SELECT \n    c.segment AS customer_segment, \n    SUM(o.amount) AS closed_revenue\nFROM \n    customers c\nJOIN \n    orders o ON c.customer_id = o.customer_id\nWHERE \n    c.status = 'active' \n    AND c.is_internal = 0 \n    AND o.order_status = 'closed'\nGROUP BY \n    c.segment;",
+      "query_columns": [
+        "customer_segment",
+        "closed_revenue"
+      ],
+      "query_rows": [
+        [
+          "Enterprise",
+          116000
+        ],
+        [
+          "Mid-Market",
+          41000
+        ],
+        [
+          "SMB",
+          9000
+        ]
+      ],
+      "query_contract": "aggregate_allowed",
+      "query_sufficient": true,
+      "query_correct": true,
+      "query_result_precision": 1.0,
+      "analysis_result": {
+        "analysis": "group_sum_chart",
+        "chart_type": "bar",
+        "rows": [
+          [
+            "Enterprise",
+            116000
+          ],
+          [
+            "Mid-Market",
+            41000
+          ],
+          [
+            "SMB",
+            9000
+          ]
+        ]
+      },
+      "analysis_correct": true,
+      "qa_passed": true,
+      "qa_issues": [],
+      "final_answer": "The chart-ready data for closed revenue by customer segment among currently live customers is as follows:\n\n- Customer Segment: Enterprise, Closed Revenue: 116000\n- Customer Segment: Mid-Market, Closed Revenue: 41000\n- Customer Segment: SMB, Closed Revenue: 9000\n\nThis data is suitable for a bar chart.",
+      "final_correct": true,
+      "completeness": 1.0,
+      "latency_sec": 8.6007,
+      "round_count": 8,
+      "query_count": 1,
+      "analysis_execution_count": 1,
+      "llm_call_count": 6,
+      "llm_calls": [
+        {
+          "agent": "task_manager",
+          "output": "{\n  \"route\": [\"metric\", \"discovery\", \"query\", \"analysis\"],\n  \"rationale\": \"The task requires chart-ready output for closed revenue by customer segment, which involves post-query computation and analysis to prepare the data for visualization.\"\n}",
+          "token_usage": {
+            "input_tokens": 114,
+            "output_tokens": 52,
+            "total_tokens": 166,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        },
+        {
+          "agent": "metric_agent",
+          "output": "{\"metric_id\": \"segment_active_revenue_mix\"}",
+          "token_usage": {
+            "input_tokens": 477,
+            "output_tokens": 11,
+            "total_tokens": 488,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        },
+        {
+          "agent": "data_discovery_agent",
+          "output": "{\n  \"tables\": [\n    \"customers\",\n    \"orders\"\n  ],\n  \"columns\": [\n    \"customers.segment\",\n    \"customers.status\",\n    \"orders.amount\"\n  ],\n  \"join_keys\": [\n    \"customers.customer_id = orders.customer_id\"\n  ],\n  \"filters\": [\n    \"customers.is_internal = 0\",\n    \"customers.status = 'active'\"\n  ],\n  \"grain\": \"segment\",\n  \"data_contract\": {\n    \"tables\": [\n      \"customers\",\n      \"orders\"\n    ],\n    \"columns\": [\n      \"customers.segment\",\n      \"customers.status\",\n      \"orders.amount\"\n    ],\n    \"join_keys\": [\n      \"customers.customer_id = orders.customer_id\"\n    ],\n    \"filters\": [\n      \"customers.is_internal = 0\",\n      \"customers.status = 'active'\"\n    ],\n    \"grain\": \"segment\"\n  }\n}",
+          "token_usage": {
+            "input_tokens": 360,
+            "output_tokens": 182,
+            "total_tokens": 542,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        },
+        {
+          "agent": "query_agent",
+          "output": "```sql\nSELECT \n    c.segment AS customer_segment, \n    SUM(o.amount) AS closed_revenue\nFROM \n    customers c\nJOIN \n    orders o ON c.customer_id = o.customer_id\nWHERE \n    c.status = 'active' \n    AND c.is_internal = 0 \n    AND o.order_status = 'closed'\nGROUP BY \n    c.segment;\n```",
+          "token_usage": {
+            "input_tokens": 433,
+            "output_tokens": 79,
+            "total_tokens": 512,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        },
+        {
+          "agent": "qa_agent",
+          "output": "{\n  \"passed\": true,\n  \"issues\": []\n}",
+          "token_usage": {
+            "input_tokens": 521,
+            "output_tokens": 13,
+            "total_tokens": 534,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        },
+        {
+          "agent": "insight_agent",
+          "output": "The chart-ready data for closed revenue by customer segment among currently live customers is as follows:\n\n- Customer Segment: Enterprise, Closed Revenue: 116000\n- Customer Segment: Mid-Market, Closed Revenue: 41000\n- Customer Segment: SMB, Closed Revenue: 9000\n\nThis data is suitable for a bar chart.",
+          "token_usage": {
+            "input_tokens": 268,
+            "output_tokens": 68,
+            "total_tokens": 336,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        }
+      ],
+      "trace": [
+        {
+          "agent": "task_manager",
+          "content": {
+            "route": [
+              "metric",
+              "discovery",
+              "query",
+              "analysis"
+            ],
+            "rationale": "The task requires chart-ready output for closed revenue by customer segment, which involves post-query computation and analysis to prepare the data for visualization."
+          }
+        },
+        {
+          "agent": "metric_agent",
+          "content": {
+            "metric_id": "segment_active_revenue_mix",
+            "definition": "Closed revenue by customer segment for active, non-internal customers.",
+            "business_rules": [
+              "Exclude internal test accounts.",
+              "Only include customers with status = active.",
+              "Revenue is the sum of closed order amounts grouped by segment."
+            ]
+          }
+        },
+        {
+          "agent": "data_discovery_agent",
+          "content": {
+            "tables": [
+              "customers",
+              "orders"
+            ],
+            "columns": [
+              "segment",
+              "amount"
+            ],
+            "join_keys": [
+              "customers.customer_id = orders.customer_id"
+            ],
+            "filters": [
+              "customers.status = 'active'",
+              "customers.is_internal = 0",
+              "orders.order_status = 'closed'"
+            ],
+            "grain": "one row per qualifying closed order grouped by customer segment",
+            "data_contract": {
+              "tables": [
+                "customers",
+                "orders"
+              ],
+              "columns": [
+                "segment",
+                "amount"
+              ],
+              "join_keys": [
+                "customers.customer_id = orders.customer_id"
+              ],
+              "filters": [
+                "customers.status = 'active'",
+                "customers.is_internal = 0",
+                "orders.order_status = 'closed'"
+              ],
+              "grain": "one row per qualifying closed order grouped by customer segment"
+            }
+          }
+        },
+        {
+          "agent": "query_agent",
+          "content": {
+            "query": "SELECT \n    c.segment AS customer_segment, \n    SUM(o.amount) AS closed_revenue\nFROM \n    customers c\nJOIN \n    orders o ON c.customer_id = o.customer_id\nWHERE \n    c.status = 'active' \n    AND c.is_internal = 0 \n    AND o.order_status = 'closed'\nGROUP BY \n    c.segment;"
+          }
+        },
+        {
+          "agent": "query_executor",
+          "content": {
+            "columns": [
+              "customer_segment",
+              "closed_revenue"
+            ],
+            "rows": [
+              [
+                "Enterprise",
+                116000
+              ],
+              [
+                "Mid-Market",
+                41000
+              ],
+              [
+                "SMB",
+                9000
+              ]
+            ],
+            "error": null
+          }
+        },
+        {
+          "agent": "analysis_agent",
+          "content": {
+            "analysis": "group_sum_chart",
+            "chart_type": "bar",
+            "rows": [
+              [
+                "Enterprise",
+                116000
+              ],
+              [
+                "Mid-Market",
+                41000
+              ],
+              [
+                "SMB",
+                9000
+              ]
+            ]
+          }
+        },
+        {
+          "agent": "qa_agent",
+          "content": {
+            "passed": true,
+            "issues": []
+          }
+        },
+        {
+          "agent": "insight_agent",
+          "content": {
+            "final_answer": "The chart-ready data for closed revenue by customer segment among currently live customers is as follows:\n\n- Customer Segment: Enterprise, Closed Revenue: 116000\n- Customer Segment: Mid-Market, Closed Revenue: 41000\n- Customer Segment: SMB, Closed Revenue: 9000\n\nThis data is suitable for a bar chart."
+          }
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "id": "churned_customer_revenue",
+      "question": "How much closed revenue came from churned customers? Exclude internal accounts.",
+      "run_question": "How much closed revenue came from lost customers? Exclude internal accounts.",
+      "expected_route": [
+        "metric",
+        "discovery",
+        "query"
+      ],
+      "planned_route": [
+        "metric",
+        "discovery",
+        "query",
+        "analysis"
+      ],
+      "route_correct": false,
+      "route_exact_match": false,
+      "route_covered": true,
+      "unnecessary_steps": [
+        "analysis"
+      ],
+      "unnecessary_step_count": 1,
+      "expected_metric": "churned_customer_revenue",
+      "metric_context": {
+        "metric_id": "churned_customer_revenue",
+        "definition": "Closed revenue from churned, non-internal customers.",
+        "business_rules": [
+          "Exclude internal test accounts.",
+          "Only include customers with status = churned.",
+          "Revenue is the sum of closed order amounts."
+        ]
+      },
+      "metric_correct": true,
+      "expected_tables": [
+        "customers",
+        "orders"
+      ],
+      "expected_columns": [
+        "amount"
+      ],
+      "data_context": {
+        "tables": [
+          "customers",
+          "orders"
+        ],
+        "columns": [
+          "customers.customer_id",
+          "customers.customer_name",
+          "customers.segment",
+          "customers.region",
+          "customers.status",
+          "orders.amount"
+        ],
+        "join_keys": [
+          "customers.customer_id = orders.customer_id"
+        ],
+        "filters": [
+          "customers.is_internal = 0",
+          "customers.status = 'churned'",
+          "orders.order_status = 'closed'"
+        ],
+        "grain": "customer_id",
+        "data_contract": {
+          "tables": [
+            "customers",
+            "orders"
+          ],
+          "columns": [
+            "customers.customer_id",
+            "customers.customer_name",
+            "customers.segment",
+            "customers.region",
+            "customers.status",
+            "orders.amount"
+          ],
+          "join_keys": [
+            "customers.customer_id = orders.customer_id"
+          ],
+          "filters": [
+            "customers.is_internal = 0",
+            "customers.status = 'churned'",
+            "orders.order_status = 'closed'"
+          ],
+          "grain": "customer_id"
+        }
+      },
+      "data_discovery_tables_correct": true,
+      "data_discovery_columns_correct": true,
+      "data_discovery_column_precision": 0.1667,
+      "data_discovery_joins_correct": true,
+      "data_discovery_filters_correct": true,
+      "data_discovery_correct": true,
+      "expected_query": "\n        SELECT SUM(o.amount) AS revenue\n        FROM customers c\n        JOIN orders o ON c.customer_id = o.customer_id\n        WHERE c.status='churned'\n          AND c.is_internal=0\n          AND o.order_status='closed';\n        ",
+      "executed_query": "SELECT \n    customers.customer_id,\n    customers.customer_name,\n    customers.segment,\n    customers.region,\n    customers.status,\n    SUM(orders.amount) AS closed_revenue\nFROM \n    customers\nJOIN \n    orders ON customers.customer_id = orders.customer_id\nWHERE \n    customers.is_internal = 0 \n    AND customers.status = 'churned' \n    AND orders.order_status = 'closed'\nGROUP BY \n    customers.customer_id, \n    customers.customer_name, \n    customers.segment, \n    customers.region, \n    customers.status;",
+      "query_columns": [
+        "customer_id",
+        "customer_name",
+        "segment",
+        "region",
+        "status",
+        "closed_revenue"
+      ],
+      "query_rows": [
+        [
+          8,
+          "Helios Energy",
+          "Enterprise",
+          "APAC",
+          "churned",
+          42000
+        ]
+      ],
+      "query_contract": "exact_result",
+      "query_sufficient": true,
+      "query_correct": true,
+      "query_result_precision": 0.1667,
+      "analysis_result": {
+        "analysis": "passthrough",
+        "rows": [
+          [
+            8,
+            "Helios Energy",
+            "Enterprise",
+            "APAC",
+            "churned",
+            42000
+          ]
+        ]
+      },
+      "analysis_correct": true,
+      "qa_passed": true,
+      "qa_issues": [],
+      "final_answer": "The closed revenue from lost customers, excluding internal accounts, is 42000.",
+      "final_correct": true,
+      "completeness": 1.0,
+      "latency_sec": 9.3465,
+      "round_count": 8,
+      "query_count": 1,
+      "analysis_execution_count": 1,
+      "llm_call_count": 6,
+      "llm_calls": [
+        {
+          "agent": "task_manager",
+          "output": "{\n  \"route\": [\"metric\", \"discovery\", \"query\", \"analysis\"],\n  \"rationale\": \"The question requires a detailed analysis of closed revenue specifically from lost customers, which involves post-query computation to identify and rank the revenue contributions while excluding internal accounts. This necessitates the use of the analysis route to provide chart-ready output.\"\n}",
+          "token_usage": {
+            "input_tokens": 113,
+            "output_tokens": 71,
+            "total_tokens": 184,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        },
+        {
+          "agent": "metric_agent",
+          "output": "{\"metric_id\": \"churned_customer_revenue\"}",
+          "token_usage": {
+            "input_tokens": 476,
+            "output_tokens": 12,
+            "total_tokens": 488,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        },
+        {
+          "agent": "data_discovery_agent",
+          "output": "{\n  \"tables\": [\n    \"customers\",\n    \"orders\"\n  ],\n  \"columns\": [\n    \"customers.customer_id\",\n    \"customers.customer_name\",\n    \"customers.segment\",\n    \"customers.region\",\n    \"customers.status\",\n    \"orders.amount\"\n  ],\n  \"join_keys\": [\n    \"customers.customer_id = orders.customer_id\"\n  ],\n  \"filters\": [\n    \"customers.is_internal = 0\",\n    \"customers.status = 'churned'\",\n    \"orders.order_status = 'closed'\"\n  ],\n  \"grain\": \"customer_id\",\n  \"data_contract\": {\n    \"tables\": [\n      \"customers\",\n      \"orders\"\n    ],\n    \"columns\": [\n      \"customers.customer_id\",\n      \"customers.customer_name\",\n      \"customers.segment\",\n      \"customers.region\",\n      \"customers.status\",\n      \"orders.amount\"\n    ],\n    \"join_keys\": [\n      \"customers.customer_id = orders.customer_id\"\n    ],\n    \"filters\": [\n      \"customers.is_internal = 0\",\n      \"customers.status = 'churned'\",\n      \"orders.order_status = 'closed'\"\n    ],\n    \"grain\": \"customer_id\"\n  }\n}",
+          "token_usage": {
+            "input_tokens": 357,
+            "output_tokens": 240,
+            "total_tokens": 597,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        },
+        {
+          "agent": "query_agent",
+          "output": "```sql\nSELECT \n    customers.customer_id,\n    customers.customer_name,\n    customers.segment,\n    customers.region,\n    customers.status,\n    SUM(orders.amount) AS closed_revenue\nFROM \n    customers\nJOIN \n    orders ON customers.customer_id = orders.customer_id\nWHERE \n    customers.is_internal = 0 \n    AND customers.status = 'churned' \n    AND orders.order_status = 'closed'\nGROUP BY \n    customers.customer_id, \n    customers.customer_name, \n    customers.segment, \n    customers.region, \n    customers.status;\n```",
+          "token_usage": {
+            "input_tokens": 458,
+            "output_tokens": 116,
+            "total_tokens": 574,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        },
+        {
+          "agent": "qa_agent",
+          "output": "{\n  \"passed\": true,\n  \"issues\": []\n}",
+          "token_usage": {
+            "input_tokens": 607,
+            "output_tokens": 13,
+            "total_tokens": 620,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        },
+        {
+          "agent": "insight_agent",
+          "output": "The closed revenue from lost customers, excluding internal accounts, is 42000.",
+          "token_usage": {
+            "input_tokens": 269,
+            "output_tokens": 16,
+            "total_tokens": 285,
+            "input_token_details": {
+              "audio": 0,
+              "cache_read": 0
+            },
+            "output_token_details": {
+              "audio": 0,
+              "reasoning": 0
+            }
+          }
+        }
+      ],
+      "trace": [
+        {
+          "agent": "task_manager",
+          "content": {
+            "route": [
+              "metric",
+              "discovery",
+              "query",
+              "analysis"
+            ],
+            "rationale": "The question requires a detailed analysis of closed revenue specifically from lost customers, which involves post-query computation to identify and rank the revenue contributions while excluding internal accounts. This necessitates the use of the analysis route to provide chart-ready output."
+          }
+        },
+        {
+          "agent": "metric_agent",
+          "content": {
+            "metric_id": "churned_customer_revenue",
+            "definition": "Closed revenue from churned, non-internal customers.",
+            "business_rules": [
+              "Exclude internal test accounts.",
+              "Only include customers with status = churned.",
+              "Revenue is the sum of closed order amounts."
+            ]
+          }
+        },
+        {
+          "agent": "data_discovery_agent",
+          "content": {
+            "tables": [
+              "customers",
+              "orders"
+            ],
+            "columns": [
+              "customers.customer_id",
+              "customers.customer_name",
+              "customers.segment",
+              "customers.region",
+              "customers.status",
+              "orders.amount"
+            ],
+            "join_keys": [
+              "customers.customer_id = orders.customer_id"
+            ],
+            "filters": [
+              "customers.is_internal = 0",
+              "customers.status = 'churned'",
+              "orders.order_status = 'closed'"
+            ],
+            "grain": "customer_id",
+            "data_contract": {
+              "tables": [
+                "customers",
+                "orders"
+              ],
+              "columns": [
+                "customers.customer_id",
+                "customers.customer_name",
+                "customers.segment",
+                "customers.region",
+                "customers.status",
+                "orders.amount"
+              ],
+              "join_keys": [
+                "customers.customer_id = orders.customer_id"
+              ],
+              "filters": [
+                "customers.is_internal = 0",
+                "customers.status = 'churned'",
+                "orders.order_status = 'closed'"
+              ],
+              "grain": "customer_id"
+            }
+          }
+        },
+        {
+          "agent": "query_agent",
+          "content": {
+            "query": "SELECT \n    customers.customer_id,\n    customers.customer_name,\n    customers.segment,\n    customers.region,\n    customers.status,\n    SUM(orders.amount) AS closed_revenue\nFROM \n    customers\nJOIN \n    orders ON customers.customer_id = orders.customer_id\nWHERE \n    customers.is_internal = 0 \n    AND customers.status = 'churned' \n    AND orders.order_status = 'closed'\nGROUP BY \n    customers.customer_id, \n    customers.customer_name, \n    customers.segment, \n    customers.region, \n    customers.status;"
+          }
+        },
+        {
+          "agent": "query_executor",
+          "content": {
+            "columns": [
+              "customer_id",
+              "customer_name",
+              "segment",
+              "region",
+              "status",
+              "closed_revenue"
+            ],
+            "rows": [
+              [
+                8,
+                "Helios Energy",
+                "Enterprise",
+                "APAC",
+                "churned",
+                42000
+              ]
+            ],
+            "error": null
+          }
+        },
+        {
+          "agent": "analysis_agent",
+          "content": {
+            "analysis": "passthrough",
+            "rows": [
+              [
+                8,
+                "Helios Energy",
+                "Enterprise",
+                "APAC",
+                "churned",
+                42000
+              ]
+            ]
+          }
+        },
+        {
+          "agent": "qa_agent",
+          "content": {
+            "passed": true,
+            "issues": []
+          }
+        },
+        {
+          "agent": "insight_agent",
+          "content": {
+            "final_answer": "The closed revenue from lost customers, excluding internal accounts, is 42000."
+          }
+        }
+      ],
+      "notes": ""
+    }
+  ]
+}
